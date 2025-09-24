@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const ROLE = {
+  SUPER_ADMIN: "superAdmin",
   ADMIN: "admin",
   BASIC: "basic",
 };
@@ -23,7 +24,7 @@ const userSchema = mongoose.Schema(
     role: {
       type: String,
       default: ROLE.BASIC,
-      enum: [ROLE.BASIC, ROLE.ADMIN],
+      enum: Object.values(ROLE),
     },
   },
   {
@@ -31,23 +32,34 @@ const userSchema = mongoose.Schema(
   }
 );
 
+userSchema.virtual("currentUserRole");
+
 userSchema.pre("save", async function (next) {
   const User = mongoose.model("User"); // Get the User model
 
   try {
     // Count the total number of users and admins
     const totalUsers = await User.countDocuments();
-    const totalAdmins = await User.countDocuments({ role: ROLE.ADMIN });
+    const totalSuperAdmins = await User.countDocuments({
+      role: ROLE.SUPER_ADMIN,
+    });
 
-    // If there are no users OR no admins, allow admin creation
-    if (totalUsers === 0 || totalAdmins === 0) {
-      return next(); // Allow admin creation
+    // If no users exist, allow creating the first SUPER_ADMIN
+    if (totalUsers === 0 && this.role === ROLE.SUPER_ADMIN) {
+      return next();
     }
 
-    // If there are existing users/admins, prevent unauthorized admin creation
-    if (this.role === ROLE.ADMIN && this.currentUserRole !== ROLE.ADMIN) {
-      const error = new Error("Setting role as admin is not allowed.");
-      error.status = 401;
+    // Prevent creating another SUPER_ADMIN if one already exists
+    if (this.role === ROLE.SUPER_ADMIN && totalSuperAdmins > 0) {
+      const error = new Error("Only one Super Admin can exist in the system");
+      error.status = 403;
+      return next(error);
+    }
+
+    // Restrict creating ADMIN unless current user is SUPER_ADMIN
+    if (this.role === ROLE.ADMIN && this.currentUserRole !== ROLE.SUPER_ADMIN) {
+      const error = new Error("Only Super Admins can create Admins");
+      error.status = 403;
       return next(error);
     }
 
@@ -57,4 +69,5 @@ userSchema.pre("save", async function (next) {
   }
 });
 
-module.exports = mongoose.model("User", userSchema);
+const User = mongoose.model("User", userSchema);
+module.exports = { User, ROLE };

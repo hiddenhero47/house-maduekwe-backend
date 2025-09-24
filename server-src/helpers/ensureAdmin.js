@@ -1,34 +1,34 @@
-const User = require("../models/userModel"); // Import the User model
+const { User, ROLE } = require("../models/userModel"); // Import the User model
 const bcrypt = require("bcryptjs");
 
 // Function to ensure an admin exists
 const ensureAdminExists = async () => {
   try {
-    const adminExists = await User.findOne({ role: "admin" });
+    const superAdminExists = await User.findOne({ role: ROLE.SUPER_ADMIN });
 
-    if (!adminExists) {
-      console.log("No admin found. Creating a default admin...");
+    if (!superAdminExists) {
+      console.log("No super admin found. Creating a default super admin...");
 
-      // Hash the admin's password
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || "admin123", salt);
+      const hashedPassword = await bcrypt.hash(
+        process.env.SUPER_ADMIN_PASSWORD || "superadmin123",
+        salt
+      );
 
-      // Create the admin user
-      const adminUser = await User.create({
-        name: process.env.ADMIN_NAME || "charles",
-        email: process.env.ADMIN_EMAIL || "hiddenhero47pro@gmail.com",
+      const superAdminUser = await User.create({
+        name: process.env.SUPER_ADMIN_NAME || "hidden hero",
+        email: process.env.SUPER_ADMIN_EMAIL || "hiddenhero47pro@gmail.com",
         password: hashedPassword,
-        role: "admin",
+        role: ROLE.SUPER_ADMIN,
       });
 
-      console.log("✅ Admin user created:", adminUser.email);
+      console.log("✅ Super Admin created:", superAdminUser.email);
     } else {
-      console.log("✅ Admin already exists:", adminExists.email);
+      console.log("✅ Super Admin already exists:", superAdminExists.email);
     }
   } catch (error) {
-    console.error("Error ensuring admin user exists:", error.message);
+    console.error("Error ensuring super admin exists:", error.message);
   }
 };
 
 module.exports = { ensureAdminExists };
-

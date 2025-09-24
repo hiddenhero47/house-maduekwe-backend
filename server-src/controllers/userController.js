@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const asyncHandler = require("express-async-handler");
-const User = require("../models/userModel");
+const { User, ROLE } = require("../models/userModel");
 
 // @desc Register new user
 // @route POST /api/users
@@ -9,28 +9,31 @@ const User = require("../models/userModel");
 const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, role } = req.body;
 
+  const currentUserRole = req.user ? req.user.role : null;
+
   if (!name || !email || !password) {
     res.status(400);
     throw new Error("Please add all fields");
   }
-  // Set the status code to 401 if it admin
-  if (role === "admin") {
-    res.status(401);
+
+  // Block unauthorized admin/superAdmin creation
+  if (
+    currentUserRole !== ROLE.SUPER_ADMIN &&
+    (role === ROLE.SUPER_ADMIN || role === ROLE.ADMIN)
+  ) {
+    res.status(403);
+    throw new Error("Unauthorized to register admin");
   }
 
   // Check if user exists
   const userExists = await User.findOne({ email });
-
   if (userExists) {
     res.status(400);
     throw new Error("User already exists");
   }
 
-  let userRole = role;
-
-  if (role === "") {
-    userRole = "basic";
-  }
+  // Default role = BASIC
+  let userRole = role && role !== "" ? role : ROLE.BASIC;
 
   // Hash password
   const salt = await bcrypt.genSalt(10);
@@ -42,6 +45,7 @@ const registerUser = asyncHandler(async (req, res) => {
     email,
     password: hashedPassword,
     role: userRole,
+    currentUserRole,
   });
 
   if (user) {
