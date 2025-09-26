@@ -26,6 +26,10 @@ const userSchema = mongoose.Schema(
       default: ROLE.BASIC,
       enum: Object.values(ROLE),
     },
+    user2fa: {
+      type: Object,
+      default: {enable: false},
+    },
   },
   {
     timestamps: true,

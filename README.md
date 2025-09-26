@@ -8,6 +8,7 @@ JWT_SECRET = ""
 ADMIN_NAME = ""
 ADMIN_EMAIL = ""
 ADMIN_PASSWORD = ""
+APP_NAME = ""
 
 ## Getting Started
 
