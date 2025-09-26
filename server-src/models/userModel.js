@@ -30,6 +30,10 @@ const userSchema = mongoose.Schema(
       type: Object,
       default: {enable: false},
     },
+    deviceId: {
+      type: Array,
+      default: [],
+    },
   },
   {
     timestamps: true,
