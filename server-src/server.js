@@ -1,6 +1,6 @@
 const express = require("express");
-const multer = require('multer');
-const bodyParser = require('body-parser');
+const multer = require("multer");
+const bodyParser = require("body-parser");
 const colors = require("colors");
 const dotenv = require("dotenv").config();
 const { errorHandler } = require("./middleware/errorMiddleware");
@@ -9,7 +9,6 @@ const port = process.env.PORT || 5001;
 const path = require("path");
 const handleCors = require("./middleware/corsMiddleware");
 const { ensureAdminExists } = require("./helpers/ensureAdmin");
-
 
 connectDB();
 
@@ -22,12 +21,29 @@ app.use(forms.any());
 app.use(express.urlencoded({ extended: false }));
 
 // Declaring Static Folder
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  "/public",
+  express.static(publicPath, {
+    index: false, // prevent directory listing
+    dotfiles: "ignore", // ignore .env, .gitignore if misplaced
+    setHeaders: (res, filePath) => {
+      // Optional security headers
+      res.set("X-Content-Type-Options", "nosniff");
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext === ".js" || ext === ".html") {
+        res.setHeader("Content-Disposition", "attachment");
+        res.setHeader("Content-Type", "text/plain");
+      }
+    },
+  })
+);
 
 //middleware cors
 app.use(handleCors);
 
 app.use("/api/users", require("./routes/useRoutes"));
+app.use("/api/addresses", require("./routes/addressRoutes"));
 
 app.use(errorHandler);
 
@@ -35,12 +51,12 @@ app.use(errorHandler);
 
 // Ensure an admin exists before starting the server
 app.listen(port, async () => {
-    console.log(`🚀 Server started on port ${port}`);
-  
-    try {
-      await ensureAdminExists();
-      console.log("✅ Admin check completed.");
-    } catch (error) {
-      console.error("❌ Error ensuring admin exists:", error);
-    }
-  });
+  console.log(`🚀 Server started on port ${port}`);
+
+  try {
+    await ensureAdminExists();
+    console.log("✅ Admin check completed.");
+  } catch (error) {
+    console.error("❌ Error ensuring admin exists:", error);
+  }
+});
