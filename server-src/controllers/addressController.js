@@ -1,5 +1,5 @@
 const asyncHandler = require("express-async-handler");
-const Address = require("../models/addressModel");
+const { Address, MAX_ADDRESSES } = require("../models/addressModel");
 const { User } = require("../models/userModel");
 const addressValidationSchema = require("../validations/addressValidation");
 
@@ -34,6 +34,7 @@ const createAddress = asyncHandler(async (req, res) => {
     country,
     description,
     fullAddress,
+    isDefault: false,
   });
 
   res.status(201).json(address);

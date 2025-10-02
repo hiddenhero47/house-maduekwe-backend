@@ -29,6 +29,10 @@ const addressSchema = mongoose.Schema(
       type: String,
       required: [true, "Please add your full address description"],
     },
+    isDefault: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -51,4 +55,5 @@ addressSchema.pre("save", async function (next) {
   next();
 });
 
-module.exports = mongoose.model("Address", addressSchema);
+const Address = mongoose.model("Address", addressSchema);
+module.exports = { Address, MAX_ADDRESSES };
