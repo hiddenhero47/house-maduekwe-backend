@@ -8,7 +8,7 @@ const STATUS = {
 
 const attributeSchema = new mongoose.Schema(
   {
-     attributeId: {
+    attributeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Attribute", // link to master attribute
       required: true,
@@ -82,18 +82,23 @@ const shopItemSchema = mongoose.Schema(
       type: Array,
       required: [true, "A catalog for the item is needed"],
     },
-   attributes: {
+    attributes: {
       type: [attributeSchema], // array of objects
       default: [],
     },
     discount: {
-        type: Number,
-        default: 0,
+      type: Number,
+      default: 0,
     },
   },
   {
     timestamps: true,
   }
+);
+
+shopItemSchema.index(
+  { _id: 1, "attributes.attributeId": 1 },
+  { unique: true, sparse: true }
 );
 
 // shopItemSchema.pre("save", async function (next) {

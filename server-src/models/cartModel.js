@@ -7,15 +7,19 @@ const itemListSchema = new mongoose.Schema(
       ref: "ShopItem", // link to master attribute
       required: true,
     },
-    name: {
-      type: String,
-      required: [true, ""],
+    quantity: {
+      type: Number,
+      required: [true, "Quantity is required"],
+      min: [1, "Quantity must be at least 1"],
+    },
+    selectedAttributes: {
+      type: Array,
+      default: [],
     },
   },
   {
     timestamps: true,
-  },
-  { _id: false } // no need for _id on each attribute if you don't want it
+  }
 );
 
 const cartSchema = mongoose.Schema(
@@ -24,6 +28,7 @@ const cartSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: "User",
+      unique: true,
     },
     itemList: {
       type: [itemListSchema], // array of objects
