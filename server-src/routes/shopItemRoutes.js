@@ -4,7 +4,7 @@ const {
   createShopItem,
   updateShopItem,
   deleteShopItem,
-} = require("../controllers/shopItemsController");
+} = require("../controllers/shopItemController");
 const { secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
 

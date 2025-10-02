@@ -34,7 +34,7 @@ const attributeSchema = new mongoose.Schema(
   { _id: false } // no need for _id on each attribute if you don't want it
 );
 
-const shopItemsSchema = mongoose.Schema(
+const shopItemSchema = mongoose.Schema(
   {
     name: {
       type: String,
@@ -96,7 +96,7 @@ const shopItemsSchema = mongoose.Schema(
   }
 );
 
-// shopItemsSchema.pre("save", async function (next) {
+// shopItemSchema.pre("save", async function (next) {
 //   try {
 //     for (let attr of this.attributes) {
 //       if (attr.attributeId && (!attr.name || !attr.value)) {
@@ -113,4 +113,4 @@ const shopItemsSchema = mongoose.Schema(
 //   }
 // });
 
-module.exports = mongoose.model("shopItems", shopItemsSchema);
+module.exports = mongoose.model("ShopItem", shopItemSchema);

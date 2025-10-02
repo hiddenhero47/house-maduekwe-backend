@@ -1,5 +1,5 @@
 const asyncHandler = require("express-async-handler");
-const ShopItem = require("../models/shopItemsModel");
+const ShopItem = require("../models/shopItemModel");
 const {
   shopItemValidationSchema,
   fileValidationSchema,
