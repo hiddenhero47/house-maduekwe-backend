@@ -5,14 +5,15 @@ const colors = require("colors");
 const dotenv = require("dotenv").config();
 const { errorHandler } = require("./middleware/errorMiddleware");
 const connectDB = require("./config/db");
-const port = process.env.PORT || 5001;
+const port = process.env.PORT || 6000;
 const path = require("path");
 const handleCors = require("./middleware/corsMiddleware");
-const { ensureAdminExists } = require("./helpers/ensureAdmin");
 
 connectDB();
 
 const app = express();
+
+const publicPath = path.join(__dirname, "public");
 
 //middleware for body parser
 const forms = multer();
@@ -42,25 +43,17 @@ app.use(
 //middleware cors
 app.use(handleCors);
 
+app.use("/api/setup", require("./routes/setupRoutes"));
 app.use("/api/users", require("./routes/useRoutes"));
 app.use("/api/addresses", require("./routes/addressRoutes"));
 app.use("/api/attributes", require("./routes/attributeRoutes"));
-app.use("/api/categories", require("./routes/cartRoutes"));
+app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/shop-items", require("./routes/shopItemRoutes"));
 app.use("/api/cart", require("./routes/cartRoutes"));
 
 app.use(errorHandler);
 
-// app.listen(port, () => console.log(`Server started on port ${port}`));
+app.listen(port, () => 
+  console.log(`🚀 Server started on port ${port}`)
+);
 
-// Ensure an admin exists before starting the server
-app.listen(port, async () => {
-  console.log(`🚀 Server started on port ${port}`);
-
-  try {
-    await ensureAdminExists();
-    console.log("✅ Admin check completed.");
-  } catch (error) {
-    console.error("❌ Error ensuring admin exists:", error);
-  }
-});

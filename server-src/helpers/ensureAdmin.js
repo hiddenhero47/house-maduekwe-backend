@@ -1,14 +1,11 @@
-const { User, ROLE } = require("../models/userModel"); // Import the User model
+const { User, ROLE } = require("../models/userModel");
 const bcrypt = require("bcryptjs");
 
-// Function to ensure an admin exists
 const ensureAdminExists = async () => {
   try {
     const superAdminExists = await User.findOne({ role: ROLE.SUPER_ADMIN });
 
     if (!superAdminExists) {
-      console.log("No super admin found. Creating a default super admin...");
-
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(
         process.env.SUPER_ADMIN_PASSWORD || "superadmin123",
@@ -22,12 +19,24 @@ const ensureAdminExists = async () => {
         role: ROLE.SUPER_ADMIN,
       });
 
-      console.log("✅ Super Admin created:", superAdminUser.email);
+      return {
+        task: "Ensure Super Admin",
+        status: "success",
+        message: `Super Admin created: ${superAdminUser.email}`,
+      };
     } else {
-      console.log("✅ Super Admin already exists:", superAdminExists.email);
+      return {
+        task: "Ensure Super Admin",
+        status: "success",
+        message: `Super Admin already exists: ${superAdminExists.email}`,
+      };
     }
   } catch (error) {
-    console.error("Error ensuring super admin exists:", error.message);
+    return {
+      task: "Ensure Super Admin",
+      status: "failed",
+      message: error.message,
+    };
   }
 };
 
