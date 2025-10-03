@@ -1,8 +1,14 @@
 const fs = require("fs");
 const path = require("path");
-const { v4: uuidv4 } = require("uuid");
+// const { v4: uuidv4 } = require("uuid");
+const crypto = require("crypto");
+const uuidv4 = () => crypto.randomUUID();
 const axios = require("axios");
-const FileType = require("file-type");
+// const FileType = require("file-type");
+async function FileType(buffer) {
+  const { fileTypeFromBuffer } = await import("file-type");
+  return await fileTypeFromBuffer(buffer);
+}
 
 // 📂 Base folders
 const PUBLIC_DIR = path.join(__dirname, "../public");
@@ -16,7 +22,8 @@ fs.mkdirSync(VIDEOS_DIR, { recursive: true });
  * 🔒 Validate file type using magic numbers
  */
 async function validateFileType(buffer, allowed = ["image/jpeg", "image/png", "video/mp4"]) {
-  const type = await FileType.fromBuffer(buffer);
+  // const type = await FileType.fromBuffer(buffer);
+  const type = await FileType(buffer);
   if (!type) throw new Error("Unable to determine file type");
   if (!allowed.includes(type.mime)) {
     throw new Error(`Unsupported file type: ${type.mime}`);
