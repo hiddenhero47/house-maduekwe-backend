@@ -1,4 +1,5 @@
 const express = require("express");
+const router = express.Router();
 const {
   getShopItems,
   createShopItem,
@@ -7,8 +8,6 @@ const {
 } = require("../controllers/shopItemController");
 const { secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
-
-const router = express.Router();
 
 router.get("/", getShopItems);
 router.post("/", secureRole([ROLE.SUPER_ADMIN, ROLE.ADMIN]), createShopItem);

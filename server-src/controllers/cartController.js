@@ -1,6 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const Cart = require("../models/cartModel");
 const ShopItem = require("../models/shopItemModel");
+const { addToCartSchema } = require("../validations/cartValidation");
 
 // @desc    Get user cart
 // @route   GET /api/cart
@@ -21,15 +22,13 @@ const getCart = asyncHandler(async (req, res) => {
 // @route   POST /api/cart
 // @access  Private
 const addToCart = asyncHandler(async (req, res) => {
-  const items = req.body.items; // [{ shopItemId, quantity, selectedAttributes }, ...]
+  // ✅ Validate request body with yup
+  await addToCartSchema.validate(req.body, { abortEarly: false });
 
-  if (!Array.isArray(items) || items.length === 0) {
-    res.status(400);
-    throw new Error("Items array is required");
-  }
+  const { itemList } = req.body; // [{ shopItemId, quantity, selectedAttributes }, ...]
 
-  // validate shop items exist
-  const shopItemIds = items.map((i) => i.shopItemId);
+  // ✅ Validate shop items exist
+  const shopItemIds = itemList.map((i) => i.shopItemId);
   const shopItems = await ShopItem.find({ _id: { $in: shopItemIds } });
 
   if (shopItems.length !== shopItemIds.length) {
@@ -37,36 +36,23 @@ const addToCart = asyncHandler(async (req, res) => {
     throw new Error("One or more shop items do not exist");
   }
 
+  // ✅ Find cart
   let cart = await Cart.findOne({ user: req.user._id });
 
   if (!cart) {
-    // create a new cart
+    // no cart → create new
     cart = new Cart({
       user: req.user._id,
-      itemList: [],
+      itemList,
     });
-  }
-
-  // update or insert items
-  for (let newItem of items) {
-    const existingIndex = cart.itemList.findIndex(
-      (item) =>
-        item.shopItemId.toString() === newItem.shopItemId &&
-        JSON.stringify(item.selectedAttributes) ===
-          JSON.stringify(newItem.selectedAttributes)
-    );
-
-    if (existingIndex >= 0) {
-      // item already exists in cart → update quantity
-      cart.itemList[existingIndex].quantity += newItem.quantity;
-    } else {
-      // add new item
-      cart.itemList.push(newItem);
-    }
+  } else {
+    // cart exists → append new items
+    cart.itemList = [...cart.itemList, ...itemList];
   }
 
   await cart.save();
 
+  // ✅ Populate shopItemId before returning
   const populatedCart = await cart.populate("itemList.shopItemId");
 
   res.status(201).json(populatedCart);
