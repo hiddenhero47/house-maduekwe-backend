@@ -16,7 +16,7 @@ const getAddresses = asyncHandler(async (req, res) => {
 // @access  Private
 const createAddress = asyncHandler(async (req, res) => {
   await addressValidationSchema.validate(req.body, { abortEarly: false });
-  const { city, state, country, description, fullAddress } = req.body;
+  const { city, state, country, description, fullAddress, coordinates } = req.body;
 
   // Check if user already has max addresses
   const count = await Address.countDocuments({ user: req.user.id });
@@ -34,6 +34,7 @@ const createAddress = asyncHandler(async (req, res) => {
     country,
     description,
     fullAddress,
+    coordinates,
     isDefault: false,
   });
 

@@ -1,4 +1,5 @@
 const yup = require("yup");
+const STATUS = require("../models/shopItemModel");
 
 // ✅ Attribute Schema
 const attributeSchema = yup.object({
@@ -9,7 +10,13 @@ const attributeSchema = yup.object({
     .number()
     .min(0, "Additional amount must be >= 0")
     .optional(),
-  display: yup.object().optional(),
+  display: yup.array().optional(),
+});
+
+// ✅ Attribute Group Schema
+const attributeGroupSchema = yup.object({
+  name: yup.string().required("Group name is required"),
+  list: yup.array().optional(), // since it's optional in the model
 });
 
 // ✅ File Validation Schema
@@ -38,7 +45,7 @@ const shopItemValidationSchema = yup.object({
   brand: yup.string().optional(),
   status: yup
     .string()
-    .oneOf(["unavailable", "sold-out", "available"], "Invalid status")
+    .oneOf(Object.values(STATUS), "Invalid status")
     .default("available"),
   description: yup.string().optional(),
   price: yup.number().required("Price is required"),
@@ -52,6 +59,7 @@ const shopItemValidationSchema = yup.object({
     .required("Quantity is required"),
   placeHolder: yup.object().optional(),
   attributes: yup.array().of(attributeSchema).optional(),
+  attributeGroups: yup.array().of(attributeGroupSchema).optional(),
   discount: yup.number().min(0, "Discount must be >= 0").optional(),
 });
 

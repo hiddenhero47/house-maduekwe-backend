@@ -5,6 +5,7 @@ const addressValidationSchema = yup.object({
   state: yup.string().required("State is required"),
   country: yup.string().required("Country is required"),
   description: yup.string().required("Description is required"),
+  coordinates: yup.any().optional(),
   fullAddress: yup.string().required("Full address is required"),
 });
 
