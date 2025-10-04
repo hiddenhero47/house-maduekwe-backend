@@ -29,6 +29,9 @@ const addressSchema = mongoose.Schema(
       type: String,
       required: [true, "Please add your full address description"],
     },
+    coordinates: {
+      type: mongoose.Schema.Types.Mixed,
+    },
     isDefault: {
       type: Boolean,
       default: false,

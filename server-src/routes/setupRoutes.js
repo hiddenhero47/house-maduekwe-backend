@@ -3,10 +3,10 @@ const router = express.Router();
 const { runSetupScripts } = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
 
-// Example: allow only on 2025-10-01 for 4 hours
+// Example: allow only on 2025-10-01 for 24 hours
 router.post(
-  "/setup",
-  timeWindowGuard("2025-10-01T00:00:00Z", 4),
+  "/get-started",
+  timeWindowGuard("2025-10-03T00:00:00Z", 24),
   runSetupScripts
 );
 

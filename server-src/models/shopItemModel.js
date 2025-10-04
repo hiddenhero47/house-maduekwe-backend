@@ -29,10 +29,21 @@ const attributeSchema = new mongoose.Schema(
       type: Number,
     },
     display: {
-      type: Object, // optional
+      type: Array, // optional
     },
   },
-  { _id: false } // no need for _id on each attribute if you don't want it
+);
+
+const attributeGroupsSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "A name is needed for this group"],
+    },
+    list: {
+      type: Array,
+    },
+  },
 );
 
 const shopItemSchema = mongoose.Schema(
@@ -87,6 +98,10 @@ const shopItemSchema = mongoose.Schema(
       type: [attributeSchema], // array of objects
       default: [],
     },
+    attributeGroups: {
+      type: [attributeGroupsSchema],
+      default: [],
+    },
     discount: {
       type: Number,
       default: 0,
@@ -119,4 +134,5 @@ shopItemSchema.index(
 //   }
 // });
 
-module.exports = mongoose.model("ShopItem", shopItemSchema);
+const ShopItem = mongoose.model("ShopItem", shopItemSchema);
+module.exports = { ShopItem, STATUS };
