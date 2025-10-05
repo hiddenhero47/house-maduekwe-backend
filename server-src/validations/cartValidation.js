@@ -10,8 +10,9 @@ const cartItemSchema = yup.object().shape({
     .array()
     .of(
       yup.object().shape({
-        name: yup.string().required(),
-        value: yup.string().required(),
+        name: yup.string().optional(),
+        value: yup.string().optional(),
+        _id: yup.string().required(),
       })
     )
     .default([]),
