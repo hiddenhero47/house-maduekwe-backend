@@ -50,6 +50,7 @@ app.use("/api/attributes", require("./routes/attributeRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/shop-items", require("./routes/shopItemRoutes"));
 app.use("/api/cart", require("./routes/cartRoutes"));
+app.use("/api/item-groups", require("./routes/itemGroupRoutes"));
 
 app.use(errorHandler);
 
