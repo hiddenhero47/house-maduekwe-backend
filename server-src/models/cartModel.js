@@ -4,7 +4,7 @@ const itemListSchema = new mongoose.Schema(
   {
     shopItemId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "ShopItem", // link to master attribute
+      ref: "ShopItem",
       required: true,
     },
     quantity: {

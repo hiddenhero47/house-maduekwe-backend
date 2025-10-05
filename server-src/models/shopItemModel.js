@@ -48,6 +48,10 @@ const attributeGroupsSchema = new mongoose.Schema(
 
 const shopItemSchema = mongoose.Schema(
   {
+    itemGroupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ItemGroup",
+    },
     name: {
       type: String,
       required: [true, "Add a name for the item"],
