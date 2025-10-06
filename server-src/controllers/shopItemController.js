@@ -1,9 +1,9 @@
 const asyncHandler = require("express-async-handler");
 const { ShopItem } = require("../models/shopItemModel");
 const {
-  shopItemValidationSchema,
-  fileValidationSchema,
+  shopItemValidationSchema
 } = require("../validations/shopItemValidation");
+const {fileValidationSchema} = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
 
 // @desc   Public Get Items (with filters + pagination)
@@ -69,7 +69,7 @@ const createShopItem = asyncHandler(async (req, res) => {
   const { base64, url, ...itemData } = req.body;
 
   // ✅ Ensure required image data
-  if (!req.files || !base64 || !url) {
+  if (!req.files && !base64 && !url) {
     res.status(400);
     throw new Error("Image catalog is required. Please add item images.");
   }
@@ -104,8 +104,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
     throw new Error("Shop item not found");
   }
 
-  const { base64, url, ...itemData } = req.body;
-
+  const { base64, url, removeImages, ...itemData } = req.body;
   let newImage = null;
 
   // if client sent new images (via files, base64, or url), handle them
@@ -117,8 +116,31 @@ const updateShopItem = asyncHandler(async (req, res) => {
     });
   }
 
+  let updatedImageCatalog = item.imageCatalog;
+  // ✅ Handle image removal
+  if (Array.isArray(removeImages) && removeImages.length > 0) {
+    // Find which ones actually exist in DB record
+    const imagesToRemove = item.imageCatalog.filter((img) =>
+      removeImages.some((r) => r.path === img.path)
+    );
+
+    // Remove from catalog (only those not listed in removeImages)
+    updatedImageCatalog = item.imageCatalog.filter(
+      (img) => !removeImages.some((r) => r.path === img.path)
+    );
+
+    // Attempt file deletion for matched images
+    for (const img of imagesToRemove) {
+      try {
+        await deleteFile(img.path);
+      } catch (err) {
+        console.error(`⚠️ Failed to delete file ${img.path}:`, err.message);
+      }
+    }
+  }
+
   const imageCatalog = newImage
-    ? [...item.imageCatalog, ...newImage]
+    ? [...updatedImageCatalog, ...newImage]
     : item.imageCatalog;
 
   await shopItemValidationSchema.validate(itemData, { abortEarly: false });

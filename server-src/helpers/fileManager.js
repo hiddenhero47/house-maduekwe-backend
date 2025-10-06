@@ -70,7 +70,7 @@ async function saveBuffer(buffer, originalName, mime) {
 async function uploadHandler({ req, schema, allowedTypes }) {
   // ✅ Validate request body with Yup if schema is provided
   if (schema) {
-    await schema.validate(req.body, { abortEarly: false });
+    await schema.validate(req, { abortEarly: false });
   }
 
   const results = [];
