@@ -1,5 +1,5 @@
 const yup = require("yup");
-const STATUS = require("../models/shopItemModel");
+const { STATUS } = require("../models/shopItemModel");
 
 // ✅ Attribute Schema
 const attributeSchema = yup.object({
@@ -20,17 +20,17 @@ const attributeGroupSchema = yup.object({
 });
 
 // ✅ File Validation Schema
-const fileValidationSchema = yup.object({
-  mimetype: yup
-    .string()
-    .matches(/^image\//, "Only image files are allowed")
-    .required("File type is required"),
-  size: yup
-    .number()
-    .max(2 * 1024 * 1024, "File size must be under 2MB")
-    .required("File size is required"),
-  originalname: yup.string().required("File name is required"),
-});
+// const fileValidationSchema = yup.object({
+//   mimetype: yup
+//     .string()
+//     .matches(/^image\//, "Only image files are allowed")
+//     .required("File type is required"),
+//   size: yup
+//     .number()
+//     .max(2 * 1024 * 1024, "File size must be under 2MB")
+//     .required("File size is required"),
+//   originalname: yup.string().required("File name is required"),
+// });
 
 const imageCatalogSchema = yup.object({
   imageCatalog: yup
@@ -65,6 +65,5 @@ const shopItemValidationSchema = yup.object({
 
 module.exports = {
   shopItemValidationSchema,
-  fileValidationSchema,
   imageCatalogSchema,
 };

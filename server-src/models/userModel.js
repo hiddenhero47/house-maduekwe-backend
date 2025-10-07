@@ -28,7 +28,7 @@ const userSchema = mongoose.Schema(
     },
     user2fa: {
       type: Object,
-      default: {enable: false},
+      default: { enable: false },
     },
     deviceId: {
       type: Array,
@@ -46,6 +46,11 @@ userSchema.pre("save", async function (next) {
   const User = mongoose.model("User"); // Get the User model
 
   try {
+    // If it's not a new document and role wasn't modified, skip the check
+    if (!this.isNew && !this.isModified("role")) {
+      return next();
+    }
+
     // Count the total number of users and admins
     const totalUsers = await User.countDocuments();
     const totalSuperAdmins = await User.countDocuments({

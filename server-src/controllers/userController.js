@@ -68,7 +68,7 @@ const registerUser = asyncHandler(async (req, res) => {
 // @route POST /api/users/login
 // @access Public
 const loginUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, token } = req.body;
 
   // Check for user email
   const user = await User.findOne({ email });
@@ -77,9 +77,10 @@ const loginUser = asyncHandler(async (req, res) => {
     // If 2FA is enabled, verify token
     if (user.user2fa.enable) {
       if (!token) {
+        const err = new Error("Invalid 2FA token");
+        err.code = "2FA_INVALID";
         res.status(400);
-        err.code = "2FA_REQUIRED";
-        throw new Error("2FA token required");
+        throw err;
       }
 
       const isValid = authenticator.verify({
