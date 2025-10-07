@@ -9,6 +9,7 @@ ADMIN_NAME = ""
 ADMIN_EMAIL = ""
 ADMIN_PASSWORD = ""
 APP_NAME = ""
+BASE_URL = ""
 
 ## Getting Started
 
