@@ -1,10 +1,8 @@
 const fs = require("fs");
 const path = require("path");
-// const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const uuidv4 = () => crypto.randomUUID();
 const axios = require("axios");
-// const FileType = require("file-type");
 async function FileType(buffer) {
   const { fileTypeFromBuffer } = await import("file-type");
   return await fileTypeFromBuffer(buffer);
@@ -21,12 +19,14 @@ fs.mkdirSync(VIDEOS_DIR, { recursive: true });
 /**
  * 🔒 Validate file type using magic numbers
  */
-async function validateFileType(buffer, allowed = ["image/jpeg", "image/png", "video/mp4"]) {
-  // const type = await FileType.fromBuffer(buffer);
+async function validateFileType(
+  buffer,
+  allowed = ["image/jpeg", "image/png", "video/mp4"]
+) {
   const type = await FileType(buffer);
   if (!type) throw new Error("Unable to determine file type");
   if (!allowed.includes(type.mime)) {
-    throw new Error(`Unsupported file type: ${type.mime}`);
+    return null;
   }
   return type;
 }
@@ -74,46 +74,98 @@ async function uploadHandler({ req, schema, allowedTypes }) {
   }
 
   const results = [];
+  const errorLogs = [];
 
   // 🎯 Single file (multer -> req.file)
   if (req.file) {
-    const type = await validateFileType(req.file.buffer, allowedTypes);
-    results.push(await saveBuffer(req.file.buffer, req.file.originalname, type.mime));
+    try {
+      const type = await validateFileType(req.file.buffer, allowedTypes);
+      if (type) {
+        results.push(
+          await saveBuffer(req.file.buffer, req.file.originalname, type.mime)
+        );
+      } else {
+        errorLogs.push(`Unsupported file type: ${req.file.originalname}`);
+      }
+    } catch (err) {
+      errorLogs.push(
+        `Error processing file ${req.file.originalname}: ${err.message}`
+      );
+    }
   }
 
   // 🎯 Multiple files (multer -> req.files)
   if (req.files && Array.isArray(req.files)) {
     for (const f of req.files) {
-      const type = await validateFileType(f.buffer, allowedTypes);
-      results.push(await saveBuffer(f.buffer, f.originalname, type.mime));
+      try {
+        const type = await validateFileType(f.buffer, allowedTypes);
+        if (type) {
+          results.push(await saveBuffer(f.buffer, f.originalname, type.mime));
+        } else {
+          errorLogs.push(`Unsupported file type: ${f.originalname}`);
+        }
+      } catch (err) {
+        errorLogs.push(
+          `Error processing file ${f.originalname}: ${err.message}`
+        );
+      }
     }
   }
 
   // 🎯 Base64 files (req.body.base64)
   if (req.body?.base64) {
-    const base64s = Array.isArray(req.body.base64) ? req.body.base64 : [req.body.base64];
+    const base64s = Array.isArray(req.body.base64)
+      ? req.body.base64
+      : [req.body.base64];
     for (const base64 of base64s) {
-      const matches = base64.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) throw new Error("Invalid base64 format");
+      try {
+        const matches = base64.match(/^data:(.+);base64,(.+)$/);
+        if (!matches) throw new Error("Invalid base64 format");
 
-      const mime = matches[1];
-      const buffer = Buffer.from(matches[2], "base64");
-      const type = await validateFileType(buffer, allowedTypes || [mime]);
+        const mime = matches[1];
+        const buffer = Buffer.from(matches[2], "base64");
+        const type = await validateFileType(buffer, allowedTypes || [mime]);
 
-      results.push(await saveBuffer(buffer, `base64file.${type.ext}`, type.mime));
+        if (type) {
+          results.push(
+            await saveBuffer(buffer, `base64file.${type.ext}`, type.mime)
+          );
+        } else {
+          errorLogs.push(`Unsupported base64 file type: ${mime}`);
+        }
+      } catch (err) {
+        errorLogs.push(`Error processing base64 file: ${err.message}`);
+      }
     }
   }
 
-  // 🎯 Remote URL (req.body.url) [Optional]
+  // 🎯 Remote URL (req.body.url)
   if (req.body?.url) {
-    const response = await axios.get(req.body.url, { responseType: "arraybuffer" });
-    const mime = response.headers["content-type"] || "application/octet-stream";
-    const type = await validateFileType(response.data, allowedTypes || [mime]);
+    const urls = Array.isArray(req.body.url) ? req.body.url : [req.body.url];
+    for (const url of urls) {
+      try {
+        const response = await axios.get(url, { responseType: "arraybuffer" });
+        const mime =
+          response.headers["content-type"] || "application/octet-stream";
+        const type = await validateFileType(
+          response.data,
+          allowedTypes || [mime]
+        );
 
-    results.push(await saveBuffer(response.data, path.basename(req.body.url), type.mime));
+        if (type) {
+          results.push(
+            await saveBuffer(response.data, path.basename(url), type.mime)
+          );
+        } else {
+          errorLogs.push(`Unsupported file type from URL: ${url}`);
+        }
+      } catch (err) {
+        errorLogs.push(`Error fetching file from URL ${url}: ${err.message}`);
+      }
+    }
   }
 
-  return results;
+  return { results, errorLogs };
 }
 
 /**
@@ -132,7 +184,7 @@ async function deleteFile(filePath) {
 /**
  * ♻️ Replace an old file with a new one
  */
-async function updateFile({oldFilePath, req, schema, allowedTypes}) {
+async function updateFile({ oldFilePath, req, schema, allowedTypes }) {
   await deleteFile(oldFilePath);
   return await uploadHandler({ req, schema, allowedTypes });
 }

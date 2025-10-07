@@ -1,9 +1,9 @@
 const asyncHandler = require("express-async-handler");
 const { ShopItem } = require("../models/shopItemModel");
 const {
-  shopItemValidationSchema
+  shopItemValidationSchema,
 } = require("../validations/shopItemValidation");
-const {fileValidationSchema} = require("../validations/itemImageValidation");
+const { fileValidationSchema } = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
 
 // @desc   Public Get Items (with filters + pagination)
@@ -78,11 +78,17 @@ const createShopItem = asyncHandler(async (req, res) => {
   await shopItemValidationSchema.validate(req.body, { abortEarly: false });
 
   // ✅ Upload images (with validation)
-  const imageCatalog = await uploadHandler({
+  const fileData = await uploadHandler({
     req,
     schema: fileValidationSchema,
     allowedTypes: ["image/jpeg", "image/png"],
   });
+  const imageCatalog = fileData.results;
+
+  if (imageCatalog.length === 0) {
+    res.status(400);
+    throw new Error(fileData.errorLogs);
+  }
 
   // ✅ Construct item object
   const newItem = {
@@ -105,16 +111,23 @@ const updateShopItem = asyncHandler(async (req, res) => {
   }
 
   const { base64, url, removeImages, ...itemData } = req.body;
-  let newImage = null;
+  let fileData = null;
 
   // if client sent new images (via files, base64, or url), handle them
   if (req.files || base64 || url) {
-    newImage = await uploadHandler({
+    fileData = await uploadHandler({
       req,
       schema: fileValidationSchema,
       allowedTypes: ["image/jpeg", "image/png"],
     });
+
+    if (fileData?.results.length === 0) {
+      res.status(400);
+      throw new Error(fileData.errorLogs);
+    }
   }
+
+  const newImage = fileData?.results || null;
 
   let updatedImageCatalog = item.imageCatalog;
   // ✅ Handle image removal
