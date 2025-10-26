@@ -1,5 +1,11 @@
 const mongoose = require("mongoose");
 
+const attributeType = {
+  COLOR: "color",
+  SIZE: "size",
+  AUTO: "auto",
+};
+
 const attributeSchema = mongoose.Schema(
   {
     name: {
@@ -12,10 +18,21 @@ const attributeSchema = mongoose.Schema(
       required: [true, "A value is needed for this attribute"],
       trim: true,
     },
+    type: {
+      type: String,
+      required: [true, "Attribute type is needed"],
+      enum: Object.values(attributeType),
+    },
+    display: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,
   }
 );
 
-module.exports = mongoose.model("Attribute", attributeSchema);
+const Attribute = mongoose.model("Attribute", attributeSchema);
+
+module.exports = { Attribute, attributeType };

@@ -1,18 +1,18 @@
 const asyncHandler = require("express-async-handler");
-const Attribute = require("../models/attributeModel");
+const { Attribute, attributeType } = require("../models/attributeModel");
 
 // @desc    Create new attribute
 // @route   POST /api/attributes
 // @access  Private (admin/super_admin)
 const createAttribute = asyncHandler(async (req, res) => {
-  const { name, value } = req.body;
+  const { name, value, type, display } = req.body;
 
-  if (!name || !value) {
+  if (!name || !value || !type || !Object.values(attributeType).includes(type)) {
     res.status(400);
     throw new Error("Please provide both name and value for the attribute");
   }
 
-  const attribute = await Attribute.create({ name, value });
+  const attribute = await Attribute.create({ name, value, type, display });
   res.status(201).json(attribute);
 });
 
@@ -49,6 +49,8 @@ const updateAttribute = asyncHandler(async (req, res) => {
 
   attribute.name = req.body.name || attribute.name;
   attribute.value = req.body.value || attribute.value;
+  attribute.type = req.body.type || attribute.type;
+  attribute.display = req.body.display || attribute.display;
 
   const updated = await attribute.save();
   res.json(updated);

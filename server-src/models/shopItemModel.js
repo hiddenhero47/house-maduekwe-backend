@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-// const Attribute = require("./attributeModel");
+const { Attribute, attributeType } = require("./attributeModel");
 
 const STATUS = {
   UNAVAILABLE: "unavailable",
@@ -7,44 +7,33 @@ const STATUS = {
   AVAILABLE: "available",
 };
 
-const attributeSchema = new mongoose.Schema(
-  {
-    attributeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Attribute", // link to master attribute
-      required: true,
-    },
-    name: {
-      type: String,
-      required: [true, "A name is needed for this attribute"],
-    },
-    value: {
-      type: String,
-      required: [true, "A type is needed for this attribute"],
-    },
-    quantity: {
-      type: Number,
-    },
-    additionalAmount: {
-      type: Number,
-    },
-    display: {
-      type: Array, // optional
-    },
+const attributeSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, "A name is needed for this attribute"],
   },
-);
-
-const attributeGroupsSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, "A name is needed for this group"],
-    },
-    list: {
-      type: Array,
-    },
+  value: {
+    type: String,
+    required: [true, "A type is needed for this attribute"],
   },
-);
+  type: {
+    type: String,
+    required: [true, "Attribute type is needed"],
+    enum: Object.values(attributeType),
+  },
+  display: {
+    type: String,
+  },
+  quantity: {
+    type: Number,
+  },
+  additionalAmount: {
+    type: Number,
+  },
+  images: {
+    type: Array, // optional
+  },
+});
 
 const shopItemSchema = mongoose.Schema(
   {
@@ -100,10 +89,6 @@ const shopItemSchema = mongoose.Schema(
     },
     attributes: {
       type: [attributeSchema], // array of objects
-      default: [],
-    },
-    attributeGroups: {
-      type: [attributeGroupsSchema],
       default: [],
     },
     discount: {
