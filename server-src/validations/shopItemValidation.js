@@ -37,7 +37,6 @@ const imageCatalogSchema = yup.object({
 
 // ✅ Shop Item Validation Schema
 const shopItemValidationSchema = yup.object({
-  itemGroupId: yup.string().optional(),
   name: yup.string().required("Item name is required"),
   brand: yup.string().optional(),
   status: yup

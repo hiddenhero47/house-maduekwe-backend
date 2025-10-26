@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { Attribute, attributeType } = require("./attributeModel");
+const { attributeType } = require("./attributeModel");
 
 const STATUS = {
   UNAVAILABLE: "unavailable",
@@ -37,10 +37,6 @@ const attributeSchema = new mongoose.Schema({
 
 const shopItemSchema = mongoose.Schema(
   {
-    itemGroupId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "ItemGroup",
-    },
     name: {
       type: String,
       required: [true, "Add a name for the item"],
