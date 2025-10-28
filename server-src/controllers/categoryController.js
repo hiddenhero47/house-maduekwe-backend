@@ -20,14 +20,16 @@ const createCategory = asyncHandler(async (req, res) => {
     throw new Error("Category name is required");
   }
 
+  const normalizedName = name.trim().toLowerCase();
+
   // check duplicate
-  const exists = await Category.findOne({ name: name.trim() });
+  const exists = await Category.findOne({ name: normalizedName });
   if (exists) {
     res.status(400);
     throw new Error("Category already exists");
   }
 
-  const category = await Category.create({ name: name.trim() });
+  const category = await Category.create({ name: normalizedName });
   res.status(201).json(category);
 });
 
@@ -44,7 +46,9 @@ const updateCategory = asyncHandler(async (req, res) => {
     throw new Error("Category not found");
   }
 
-  if (name) category.name = name.trim();
+  const normalizedName = name.trim().toLowerCase();
+
+  if (name) category.name = normalizedName;
 
   const updated = await category.save();
   res.status(200).json(updated);
