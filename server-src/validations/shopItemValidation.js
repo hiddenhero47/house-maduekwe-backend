@@ -70,7 +70,27 @@ const shopItemValidationSchema = yup.object({
           .optional(),
       })
     )
+    .test(
+      "unique-attributes",
+      "Duplicate Attribute references are not allowed",
+      function (attributes) {
+        if (!attributes) return true;
+        const ids = attributes.map((a) => a.Attribute);
+        const uniqueIds = new Set(ids);
+        return ids.length === uniqueIds.size;
+      }
+    )
+    .test(
+      "single-default",
+      "Only one attribute can be marked as default",
+      function (attributes) {
+        if (!attributes) return true;
+        const defaultCount = attributes.filter((a) => a.isDefault).length;
+        return defaultCount <= 1;
+      }
+    )
     .optional(),
+
   discount: yup.number().min(0).optional(),
 });
 
