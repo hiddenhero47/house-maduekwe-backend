@@ -36,20 +36,31 @@ const getShopItems = asyncHandler(async (req, res) => {
       if (Array.isArray(parsed)) {
         query["attributes"] = {
           $all: parsed.map((attr) => ({
-            $elemMatch: { name: attr.name, value: attr.value },
+            Attribute: attr.Attribute, // expecting Attribute ID
           })),
         };
       }
     } catch (e) {
       res.status(400);
-      throw new Error("Invalid attributes filter format");
+      throw new Error(
+        "Invalid attributes filter format — must be a valid JSON array"
+      );
     }
   }
 
   const skip = (page - 1) * limit;
 
+  // ✅ Fetch items with category + attribute population
   const [items, total] = await Promise.all([
-    ShopItem.find(query).skip(skip).limit(Number(limit)),
+    ShopItem.find(query)
+      .populate("category", "name") // only bring back category name
+      .populate({
+        path: "attributes.Attribute",
+        select: "name value type display", // fields from Attribute model
+      })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean(),
     ShopItem.countDocuments(query),
   ]);
 
@@ -96,8 +107,24 @@ const createShopItem = asyncHandler(async (req, res) => {
     imageCatalog,
   };
 
+  // ✅ Create item
   const shopItem = await ShopItem.create(newItem);
-  res.status(201).json(shopItem);
+
+  // ✅ Re-fetch with population
+  const populatedItem = await ShopItem.findById(shopItem._id)
+    .populate("category", "name")
+    .populate({
+      path: "attributes.Attribute",
+      select: "name value type display",
+    })
+    .lean();
+
+  // ✅ Send response
+  res.status(201).json({
+    success: true,
+    message: "Shop item created successfully",
+    item: populatedItem,
+  });
 });
 
 // @desc   Update Item
@@ -111,60 +138,64 @@ const updateShopItem = asyncHandler(async (req, res) => {
   }
 
   const { base64, url, removeImages, ...itemData } = req.body;
-  let fileData = null;
+  await shopItemValidationSchema.validate(itemData, { abortEarly: false });
 
-  // if client sent new images (via files, base64, or url), handle them
+  let imageCatalog = [...item.imageCatalog];
+  const imageLogs = [];
+
+  // ✅ Handle image removal
+  if (Array.isArray(removeImages) && removeImages.length > 0) {
+    const removePaths = removeImages.map((r) => r.path);
+    imageCatalog = imageCatalog.filter(
+      (img) => !removePaths.includes(img.path)
+    );
+
+    for (const path of removePaths) {
+      try {
+        await deleteFile(path);
+      } catch (err) {
+        console.error(`⚠️ Failed to delete ${path}:`, err.message);
+        imageLogs.push(`Failed to delete ${path}`);
+      }
+    }
+  }
+
+  // ✅ Handle new image uploads
   if (req.files || base64 || url) {
-    fileData = await uploadHandler({
+    const fileData = await uploadHandler({
       req,
       schema: fileValidationSchema,
       allowedTypes: ["image/jpeg", "image/png"],
     });
 
-    if (fileData?.results.length === 0) {
-      res.status(400);
-      throw new Error(fileData.errorLogs);
+    if (fileData?.results?.length > 0) {
+      imageCatalog.push(...fileData.results);
+    }
+    if (fileData?.errorLogs?.length > 0) {
+      imageLogs.push(...fileData.errorLogs);
     }
   }
 
-  const newImage = fileData?.results || null;
-
-  let updatedImageCatalog = item.imageCatalog;
-  // ✅ Handle image removal
-  if (Array.isArray(removeImages) && removeImages.length > 0) {
-    // Find which ones actually exist in DB record
-    const imagesToRemove = item.imageCatalog.filter((img) =>
-      removeImages.some((r) => r.path === img.path)
-    );
-
-    // Remove from catalog (only those not listed in removeImages)
-    updatedImageCatalog = item.imageCatalog.filter(
-      (img) => !removeImages.some((r) => r.path === img.path)
-    );
-
-    // Attempt file deletion for matched images
-    for (const img of imagesToRemove) {
-      try {
-        await deleteFile(img.path);
-      } catch (err) {
-        console.error(`⚠️ Failed to delete file ${img.path}:`, err.message);
-      }
-    }
-  }
-
-  const imageCatalog = newImage
-    ? [...updatedImageCatalog, ...newImage]
-    : item.imageCatalog;
-
-  await shopItemValidationSchema.validate(itemData, { abortEarly: false });
-
+  // ✅ Update item
   const updatedItem = await ShopItem.findByIdAndUpdate(
     req.params.id,
     { ...itemData, imageCatalog },
     { new: true }
-  );
+  )
+    .populate("category", "name")
+    .populate({
+      path: "attributes.Attribute",
+      select: "name value type display",
+    })
+    .lean();
 
-  res.json(updatedItem);
+  // ✅ Response (reflect partial image issues)
+  res.status(200).json({
+    success: true,
+    message: "Shop item updated successfully",
+    item: updatedItem,
+    ...(imageLogs.length > 0 && { imageLogs }), // only include if any issues
+  });
 });
 
 // @desc   Delete Item

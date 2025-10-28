@@ -8,21 +8,14 @@ const STATUS = {
 };
 
 const attributeSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, "A name is needed for this attribute"],
+  Attribute: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Attribute",
+    required: [true, "Attribute Ref is needed for this item"],
   },
-  value: {
-    type: String,
-    required: [true, "A type is needed for this attribute"],
-  },
-  type: {
-    type: String,
-    required: [true, "Attribute type is needed"],
-    enum: Object.values(attributeType),
-  },
-  display: {
-    type: String,
+  isDefault: {
+    type: Boolean,
+    default: false,
   },
   quantity: {
     type: Number,
@@ -66,8 +59,9 @@ const shopItemSchema = mongoose.Schema(
       required: [true, "Add currency for the item"],
     },
     category: {
-      type: String,
-      required: [true, "Add the category for the item"],
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: [true, "Category is needed for this item"],
     },
     subCategory: {
       type: String,
@@ -98,26 +92,21 @@ const shopItemSchema = mongoose.Schema(
 );
 
 shopItemSchema.index(
-  { _id: 1, "attributes.attributeId": 1 },
+  { _id: 1, "attributes.Attribute": 1 },
   { unique: true, sparse: true }
 );
 
-// shopItemSchema.pre("save", async function (next) {
-//   try {
-//     for (let attr of this.attributes) {
-//       if (attr.attributeId && (!attr.name || !attr.value)) {
-//         const attributeDoc = await Attribute.findById(attr.attributeId);
-//         if (attributeDoc) {
-//           attr.name = attributeDoc.name;
-//           attr.value = attributeDoc.value;
-//         }
-//       }
-//     }
-//     next();
-//   } catch (err) {
-//     next(err);
-//   }
-// });
+shopItemSchema.pre("validate", function (next) {
+  const defaultCount = this.attributes.filter((attr) => attr.isDefault).length;
+
+  if (defaultCount > 1) {
+    return next(
+      new Error("Only one attribute can be marked as default for this item.")
+    );
+  }
+
+  next();
+});
 
 const ShopItem = mongoose.model("ShopItem", shopItemSchema);
 module.exports = { ShopItem, STATUS };

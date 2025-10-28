@@ -1,41 +1,32 @@
 const yup = require("yup");
 const { STATUS } = require("../models/shopItemModel");
-const { attributeType } = require("../models/attributeModel");
+const Category = require("../models/categoryModel");
+const { Attribute } = require("../models/attributeModel");
 
-// ✅ Attribute Schema
-const attributeSchema = yup.object({
-  name: yup.string().required("Attribute name is required"),
-  value: yup.string().required("Attribute value is required"),
-  type: yup
+// ✅ Helper to validate and verify MongoDB ObjectId existence
+const objectIdExists = (Model, fieldName) =>
+  yup
     .string()
-    .oneOf(Object.values(attributeType), "Invalid attribute type"),
-  display: yup.string().optional(),
-  quantity: yup.number().min(0).default(0),
-  additionalAmount: yup.number().min(0).default(0),
-  images: yup.array().optional(),
-});
+    .matches(/^[0-9a-fA-F]{24}$/, `Invalid ${fieldName} format`)
+    .test(
+      `${fieldName}-exists`,
+      `${fieldName} does not exist`,
+      async function (value) {
+        if (!value) return true; // let required() handle emptiness
+        const exists = await Model.exists({ _id: value });
+        return !!exists;
+      }
+    );
 
-// ✅ File Validation Schema
-// const fileValidationSchema = yup.object({
-//   mimetype: yup
-//     .string()
-//     .matches(/^image\//, "Only image files are allowed")
-//     .required("File type is required"),
-//   size: yup
-//     .number()
-//     .max(2 * 1024 * 1024, "File size must be under 2MB")
-//     .required("File size is required"),
-//   originalname: yup.string().required("File name is required"),
-// });
-
+// ✅ Image Catalog Schema
 const imageCatalogSchema = yup.object({
   imageCatalog: yup
     .array()
-    .of(yup.string())
+    .of(yup.string().url("Each image must be a valid URL"))
     .required("Image catalog is required"),
 });
 
-// ✅ Shop Item Validation Schema
+// ✅ Shop Item Schema
 const shopItemValidationSchema = yup.object({
   name: yup.string().required("Item name is required"),
   brand: yup.string().optional(),
@@ -47,15 +38,60 @@ const shopItemValidationSchema = yup.object({
   price: yup.number().required("Price is required"),
   vat: yup.number().required("VAT percentage is required"),
   currency: yup.string().required("Currency is required"),
-  category: yup.string().required("Category is required"),
+
+  category: objectIdExists(Category, "Category").required(
+    "Category is required"
+  ),
   subCategory: yup.string().optional(),
-  quantity: yup
-    .number()
-    .min(0, "Quantity must be >= 0")
-    .required("Quantity is required"),
+
+  quantity: yup.number().min(0).required("Quantity is required"),
   placeHolder: yup.object().optional(),
-  attributes: yup.array().of(attributeSchema).optional(),
-  discount: yup.number().min(0, "Discount must be >= 0").optional(),
+  attributes: yup
+    .array()
+    .of(
+      yup.object({
+        Attribute: objectIdExists(Attribute, "Attribute").required(
+          "Attribute is required"
+        ),
+        isDefault: yup.boolean().default(false),
+        quantity: yup.number().min(0).optional(),
+        additionalAmount: yup.number().min(0).optional(),
+        images: yup
+          .array()
+          .of(
+            yup.object({
+              id: yup.string().required(),
+              fileName: yup.string().required(),
+              path: yup.string().required(),
+              url: yup.string().url().required(),
+              mime: yup.string().required(),
+            })
+          )
+          .optional(),
+      })
+    )
+    .test(
+      "unique-attributes",
+      "Duplicate Attribute references are not allowed",
+      function (attributes) {
+        if (!attributes) return true;
+        const ids = attributes.map((a) => a.Attribute);
+        const uniqueIds = new Set(ids);
+        return ids.length === uniqueIds.size;
+      }
+    )
+    .test(
+      "single-default",
+      "Only one attribute can be marked as default",
+      function (attributes) {
+        if (!attributes) return true;
+        const defaultCount = attributes.filter((a) => a.isDefault).length;
+        return defaultCount <= 1;
+      }
+    )
+    .optional(),
+
+  discount: yup.number().min(0).optional(),
 });
 
 module.exports = {
