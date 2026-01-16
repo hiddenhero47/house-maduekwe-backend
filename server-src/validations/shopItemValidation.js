@@ -92,6 +92,21 @@ const shopItemValidationSchema = yup.object({
     .optional(),
 
   discount: yup.number().min(0).optional(),
+
+  highlights: yup
+    .array()
+    .of(yup.string().trim().min(1, "Highlight cannot be empty"))
+    .optional(),
+
+  classTags: yup
+    .array()
+    .of(yup.string().trim().min(1))
+    .test(
+      "unique-tags",
+      "Duplicate tags are not allowed",
+      (tags) => !tags || tags.length === new Set(tags).size
+    )
+    .optional(),
 });
 
 module.exports = {

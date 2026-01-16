@@ -5,6 +5,12 @@ const {
 } = require("../validations/shopItemValidation");
 const { fileValidationSchema } = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
+const {
+  normalizeData,
+  parseClassTagsFilter,
+} = require("../helpers/shopItemHelper");
+const mongoose = require("mongoose");
+const ItemGroup = require("../models/itemGroupModel");
 
 // @desc   Public Get Items (with filters + pagination)
 // @route  GET /api/shop-items
@@ -16,11 +22,24 @@ const getShopItems = asyncHandler(async (req, res) => {
     minPrice,
     maxPrice,
     attributes,
+    classTags,
     page = 1,
-    limit = 10,
+    limit = 12,
   } = req.query;
 
   const query = {};
+
+  if (classTags) {
+    const parsedClassTags = parseClassTagsFilter(classTags);
+
+    if (!parsedClassTags) {
+      res.status(400);
+      throw new Error("Invalid classTags filter format");
+    }
+
+    query.$and = query.$and || [];
+    query.$and.push(parsedClassTags);
+  }
 
   if (category) query.category = category;
   if (subCategory) query.subCategory = subCategory;
@@ -77,7 +96,7 @@ const getShopItems = asyncHandler(async (req, res) => {
 // @route  POST /api/shop-items
 // @access Private (admin/super_admin)
 const createShopItem = asyncHandler(async (req, res) => {
-  const { base64, url, ...itemData } = req.body;
+  const { base64, url, ...itemData } = normalizeData(req.body);
 
   // ✅ Ensure required image data
   if (!req.files && !base64 && !url) {
@@ -86,7 +105,7 @@ const createShopItem = asyncHandler(async (req, res) => {
   }
 
   // ✅ Validate request body with Yup
-  await shopItemValidationSchema.validate(req.body, { abortEarly: false });
+  await shopItemValidationSchema.validate(itemData, { abortEarly: false });
 
   // ✅ Upload images (with validation)
   const fileData = await uploadHandler({
@@ -137,7 +156,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
     throw new Error("Shop item not found");
   }
 
-  const { base64, url, removeImages, ...itemData } = req.body;
+  const { base64, url, removeImages, ...itemData } = normalizeData(req.body);
   await shopItemValidationSchema.validate(itemData, { abortEarly: false });
 
   let imageCatalog = [...item.imageCatalog];
@@ -176,11 +195,22 @@ const updateShopItem = asyncHandler(async (req, res) => {
     }
   }
 
+  // Sanitize
+  const updatePayload = { ...itemData, imageCatalog };
+  Object.keys(updatePayload).forEach((key) => {
+    if (key !== "imageCatalog" && updatePayload[key] === undefined) {
+      delete updatePayload[key];
+    }
+  });
+
   // ✅ Update item
   const updatedItem = await ShopItem.findByIdAndUpdate(
     req.params.id,
-    { ...itemData, imageCatalog },
-    { new: true }
+    { $set: updatePayload },
+    {
+      new: true,
+      runValidators: true,
+    }
   )
     .populate("category", "name")
     .populate({
@@ -221,9 +251,167 @@ const deleteShopItem = asyncHandler(async (req, res) => {
   res.json({ message: "Shop item deleted successfully", id: req.params.id });
 });
 
+// @desc   Public Get Single Shop Item
+// @route  GET /api/shop-items/:id
+// @access Public
+const getShopItemById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400);
+    throw new Error("Invalid shop item ID");
+  }
+
+  const item = await ShopItem.findOne({
+    _id: id,
+    isDeleted: false,
+  })
+    .populate("category", "name")
+    .populate({
+      path: "attributes.Attribute",
+      select: "name value type display",
+    })
+    .lean();
+
+  if (!item) {
+    res.status(404);
+    throw new Error("Shop item not found");
+  }
+
+  res.json({
+    success: true,
+    item,
+  });
+});
+
+// @desc   Public Get Related Shop Items
+// @route  GET /api/shop-items/:id/related
+// @access Public
+const getRelatedShopItems = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const limit = Number(req.query.limit) || 8;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400);
+    throw new Error("Invalid shop item ID");
+  }
+
+  const baseItem = await ShopItem.findOne({
+    _id: id,
+    isDeleted: false,
+  }).lean();
+
+  if (!baseItem) {
+    res.status(404);
+    throw new Error("Shop item not found");
+  }
+
+  let relatedItems = [];
+
+  /* ===========================
+     1️⃣ ITEM GROUPS (strongest)
+     =========================== */
+  const groups = await ItemGroup.find({
+    shopItems: id,
+  }).select("shopItems");
+
+  if (groups.length) {
+    const groupItemIds = [
+      ...new Set(
+        groups
+          .flatMap((g) => g.shopItems.map(String))
+          .filter((itemId) => itemId !== id)
+      ),
+    ];
+
+    const groupItems = await ShopItem.find({
+      _id: { $in: groupItemIds },
+      isDeleted: false,
+    })
+      .limit(limit)
+      .lean();
+
+    relatedItems = mergeUnique(relatedItems, groupItems, limit);
+  }
+
+  /* ===========================
+     2️⃣ SAME SUBCATEGORY
+     =========================== */
+  if (relatedItems.length < limit && baseItem.subCategory) {
+    const subCategoryItems = await ShopItem.find({
+      _id: { $ne: id },
+      subCategory: baseItem.subCategory,
+      isDeleted: false,
+    })
+      .limit(limit)
+      .lean();
+
+    relatedItems = mergeUnique(relatedItems, subCategoryItems, limit);
+  }
+
+  /* ===========================
+     3️⃣ CLASS TAGS
+     =========================== */
+  if (
+    relatedItems.length < limit &&
+    Array.isArray(baseItem.classTags) &&
+    baseItem.classTags.length
+  ) {
+    const classTagItems = await ShopItem.find({
+      _id: { $ne: id },
+      classTags: { $in: baseItem.classTags },
+      isDeleted: false,
+    })
+      .limit(limit)
+      .lean();
+
+    relatedItems = mergeUnique(relatedItems, classTagItems, limit);
+  }
+
+  /* ===========================
+     4️⃣ ATTRIBUTES (weakest)
+     =========================== */
+  if (
+    relatedItems.length < limit &&
+    Array.isArray(baseItem.attributes) &&
+    baseItem.attributes.length
+  ) {
+    const attributeIds = baseItem.attributes.map((a) => a.Attribute);
+
+    const attributeItems = await ShopItem.find({
+      _id: { $ne: id },
+      "attributes.Attribute": { $in: attributeIds },
+      isDeleted: false,
+    })
+      .limit(limit)
+      .lean();
+
+    relatedItems = mergeUnique(relatedItems, attributeItems, limit);
+  }
+
+  /* ===========================
+     POPULATE ONCE (FINAL)
+     =========================== */
+  const populatedItems = await ShopItem.populate(relatedItems, [
+    { path: "category", select: "name" },
+    {
+      path: "attributes.Attribute",
+      select: "name value type display",
+    },
+  ]);
+
+  res.json({
+    success: true,
+    total: populatedItems.length,
+    items: populatedItems,
+  });
+});
+
 module.exports = {
   getShopItems,
   createShopItem,
   updateShopItem,
   deleteShopItem,
+  getShopItemById,
+  getRelatedShopItems,
 };
