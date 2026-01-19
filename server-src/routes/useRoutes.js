@@ -6,6 +6,9 @@ const {
   generate2fa,
   verify2fa,
   getMe,
+  googleLogin,
+  appleLogin,
+  updateUserProfile,
 } = require("../controllers/userController");
 const { protect, secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
@@ -16,5 +19,8 @@ router.post("/login", loginUser);
 router.get("/2fa/setup", protect, generate2fa);
 router.post("/2fa/verify", protect, verify2fa);
 router.get("/geMe", protect, getMe);
+router.post("/social/google", googleLogin);
+router.post("/social/apple", appleLogin);
+router.put("/profile", protect, updateUserProfile);
 
 module.exports = router;

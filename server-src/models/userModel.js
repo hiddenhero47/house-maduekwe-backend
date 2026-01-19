@@ -34,13 +34,38 @@ const userSchema = mongoose.Schema(
       type: Array,
       default: [],
     },
+    phoneNumber: {
+      number: String,
+      country: String,
+    },
+    avatar: {
+      type: Object,
+    },
+    authProviders: [
+      {
+        provider: {
+          type: String,
+          enum: ["local", "google", "apple"],
+          required: true,
+        },
+        providerId: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 userSchema.virtual("currentUserRole");
+
+userSchema.index(
+  { "authProviders.provider": 1, "authProviders.providerId": 1 },
+  { unique: true }
+);
 
 userSchema.pre("save", async function (next) {
   const User = mongoose.model("User"); // Get the User model
