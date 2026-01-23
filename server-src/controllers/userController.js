@@ -19,22 +19,11 @@ const appleSignin = require("apple-signin-auth");
 // @route POST /api/users
 // @access Public
 const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, role } = req.body;
-
-  const currentUserRole = req.user ? req.user.role : null;
+  const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
     res.status(400);
     throw new Error("Please add all fields");
-  }
-
-  // Block unauthorized admin/superAdmin creation
-  if (
-    currentUserRole !== ROLE.SUPER_ADMIN &&
-    (role === ROLE.SUPER_ADMIN || role === ROLE.ADMIN)
-  ) {
-    res.status(403);
-    throw new Error("Unauthorized to register admin");
   }
 
   // Check if user exists
@@ -43,9 +32,6 @@ const registerUser = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("User already exists");
   }
-
-  // Default role = BASIC
-  let userRole = role && role !== "" ? role : ROLE.BASIC;
 
   // Hash password
   const salt = await bcrypt.genSalt(10);
@@ -56,8 +42,7 @@ const registerUser = asyncHandler(async (req, res) => {
     name,
     email,
     password: hashedPassword,
-    role: userRole,
-    currentUserRole,
+    role: ROLE.BASIC,
   });
 
   if (user) {
@@ -432,6 +417,46 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc Register new admin
+// @route POST /api/users/admin-create
+// @access Private (SUPER_ADMIN only)
+const registerAdmin = asyncHandler(async (req, res) => {
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    res.status(400);
+    throw new Error("Please add all fields");
+  }
+
+  const userExists = await User.findOne({ email });
+  if (userExists) {
+    res.status(400);
+    throw new Error("User already exists");
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  const admin = new User({
+    name,
+    email,
+    password: hashedPassword,
+    role: ROLE.ADMIN,
+  });
+
+  // 🔐 Internal flag (NOT persisted)
+  admin._adminCreation = true;
+
+  await admin.save();
+
+  res.status(201).json({
+    _id: admin.id,
+    name: admin.name,
+    email: admin.email,
+    role: admin.role,
+  });
+});
+
 // Generate JWT
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -480,4 +505,5 @@ module.exports = {
   googleLogin,
   appleLogin,
   updateUserProfile,
+  registerAdmin,
 };
