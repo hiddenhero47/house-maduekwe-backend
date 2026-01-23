@@ -35,8 +35,19 @@ const userSchema = mongoose.Schema(
       default: [],
     },
     phoneNumber: {
-      number: String,
-      country: String,
+      number: {
+        type: String,
+        trim: true,
+      },
+      country: {
+        type: String,
+        uppercase: true,
+        trim: true,
+        match: [
+          /^[A-Z]{2}$/,
+          "Phone country must be a valid 2-letter country code (e.g. NG, US)",
+        ],
+      },
     },
     avatar: {
       type: Object,

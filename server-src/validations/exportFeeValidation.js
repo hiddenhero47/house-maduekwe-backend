@@ -10,7 +10,13 @@ const stateFeeSchema = yup.object({
 });
 
 const exportFeeValidationSchema = yup.object({
-  country: yup.string().required("Country is required").trim().lowercase(),
+  country: yup
+    .string()
+    .required("Country is required")
+    .matches(
+      /^[A-Z]{2}$/,
+      "Country must be a valid 2-letter country code (e.g. NG, US)",
+    ),
 
   defaultAmount: yup
     .number()
