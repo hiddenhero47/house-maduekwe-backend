@@ -6,15 +6,22 @@ const {
   generate2fa,
   verify2fa,
   getMe,
+  googleLogin,
+  appleLogin,
+  updateUserProfile,
+  registerAdmin,
 } = require("../controllers/userController");
 const { protect, secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
 
 router.post("/", registerUser);
-router.post("/admin-create", secureRole(ROLE.SUPER_ADMIN), registerUser);
+router.post("/admin-create", secureRole(ROLE.SUPER_ADMIN), registerAdmin);
 router.post("/login", loginUser);
 router.get("/2fa/setup", protect, generate2fa);
 router.post("/2fa/verify", protect, verify2fa);
-router.get("/geMe", protect, getMe);
+router.get("/getMe", protect, getMe);
+router.post("/social/google", googleLogin);
+router.post("/social/apple", appleLogin);
+router.put("/profile", protect, updateUserProfile);
 
 module.exports = router;

@@ -34,13 +34,49 @@ const userSchema = mongoose.Schema(
       type: Array,
       default: [],
     },
+    phoneNumber: {
+      number: {
+        type: String,
+        trim: true,
+      },
+      country: {
+        type: String,
+        uppercase: true,
+        trim: true,
+        match: [
+          /^[A-Z]{2}$/,
+          "Phone country must be a valid 2-letter country code (e.g. NG, US)",
+        ],
+      },
+    },
+    avatar: {
+      type: Object,
+    },
+    authProviders: [
+      {
+        provider: {
+          type: String,
+          enum: ["local", "google", "apple"],
+          required: true,
+        },
+        providerId: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 userSchema.virtual("currentUserRole");
+
+userSchema.index(
+  { "authProviders.provider": 1, "authProviders.providerId": 1 },
+  { unique: true },
+);
 
 userSchema.pre("save", async function (next) {
   const User = mongoose.model("User"); // Get the User model
@@ -51,27 +87,22 @@ userSchema.pre("save", async function (next) {
       return next();
     }
 
-    // Count the total number of users and admins
-    const totalUsers = await User.countDocuments();
-    const totalSuperAdmins = await User.countDocuments({
-      role: ROLE.SUPER_ADMIN,
-    });
+    // 🔒 Enforce single Super Admin
+    if (this.role === ROLE.SUPER_ADMIN) {
+      const existingSuperAdmin = await User.exists({
+        role: ROLE.SUPER_ADMIN,
+      });
 
-    // If no users exist, allow creating the first SUPER_ADMIN
-    if (totalUsers === 0 && this.role === ROLE.SUPER_ADMIN) {
-      return next();
+      if (existingSuperAdmin) {
+        const error = new Error("Only one Super Admin can exist in the system");
+        error.status = 403;
+        return next(error);
+      }
     }
 
-    // Prevent creating another SUPER_ADMIN if one already exists
-    if (this.role === ROLE.SUPER_ADMIN && totalSuperAdmins > 0) {
-      const error = new Error("Only one Super Admin can exist in the system");
-      error.status = 403;
-      return next(error);
-    }
-
-    // Restrict creating ADMIN unless current user is SUPER_ADMIN
-    if (this.role === ROLE.ADMIN && this.currentUserRole !== ROLE.SUPER_ADMIN) {
-      const error = new Error("Only Super Admins can create Admins");
+    // 🔒 Block ADMIN creation unless explicitly allowed
+    if (this.role === ROLE.ADMIN && !this._adminCreation) {
+      const error = new Error("Admin creation not allowed");
       error.status = 403;
       return next(error);
     }

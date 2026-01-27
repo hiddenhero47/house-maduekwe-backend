@@ -5,6 +5,8 @@ const {
   createShopItem,
   updateShopItem,
   deleteShopItem,
+  getShopItemById,
+  getRelatedShopItems,
 } = require("../controllers/shopItemController");
 const { secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
@@ -17,5 +19,7 @@ router.delete(
   secureRole([ROLE.SUPER_ADMIN, ROLE.ADMIN]),
   deleteShopItem
 );
+router.get("/:id", getShopItemById);
+router.get("/:id/related", getRelatedShopItems);
 
 module.exports = router;

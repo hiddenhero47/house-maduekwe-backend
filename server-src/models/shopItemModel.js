@@ -85,6 +85,22 @@ const shopItemSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
+    highlights: {
+      type: [String],
+      default: [],
+    },
+    classTags: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
@@ -103,6 +119,56 @@ shopItemSchema.pre("validate", function (next) {
     return next(
       new Error("Only one attribute can be marked as default for this item.")
     );
+  }
+
+  next();
+});
+
+shopItemSchema.pre("save", function (next) {
+  if (this.classTags?.length) {
+    this.classTags = this.classTags.map((tag) => tag.toLowerCase().trim());
+  }
+  next();
+});
+
+shopItemSchema.pre("findOneAndUpdate", function (next) {
+  const update = this.getUpdate();
+
+  if (!update) return next();
+
+  // Handle $set wrappers
+  const data =
+    update.$set && typeof update.$set === "object" ? update.$set : update;
+
+  // ✅ Normalize classTags
+  if (Array.isArray(data.classTags)) {
+    data.classTags = [
+      ...new Set(
+        data.classTags.map((tag) =>
+          typeof tag === "string" ? tag.toLowerCase().trim() : tag
+        )
+      ),
+    ];
+  }
+
+  // ✅ Enforce single default attribute on update
+  if (Array.isArray(data.attributes)) {
+    const defaultCount = data.attributes.filter(
+      (attr) => attr.isDefault
+    ).length;
+
+    if (defaultCount > 1) {
+      return next(
+        new Error("Only one attribute can be marked as default for this item.")
+      );
+    }
+  }
+
+  // Re-assign in case we used $set
+  if (update.$set) {
+    update.$set = data;
+  } else {
+    this.setUpdate(data);
   }
 
   next();
