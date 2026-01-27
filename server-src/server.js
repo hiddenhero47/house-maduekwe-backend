@@ -54,6 +54,8 @@ app.use("/api/item-groups", require("./routes/itemGroupRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 app.use("/api/export-fees", require("./routes/exportFeeRoutes"));
 app.use("/api/payment-providers", require("./routes/paymentProviderRoutes"));
+app.use("/api/orders", require("./routes/orderRoutes"));
+app.use("/api/payment", require("./routes/paymentRoutes"));
 
 app.use(errorHandler);
 

@@ -7,6 +7,8 @@ const ORDER_STATUS = {
   SHIPPED: "shipped",
   DELIVERED: "delivered",
   CANCELLED: "cancelled",
+  RETURNED: "returned",
+  RETURNING: "processing-return",
 };
 
 const orderItemSchema = new mongoose.Schema(
@@ -35,7 +37,7 @@ const orderItemSchema = new mongoose.Schema(
       default: [],
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const orderSchema = new mongoose.Schema(
@@ -112,11 +114,12 @@ const orderSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
+paymentSchema.index({ paymentId: 1 })
 
 const Order = mongoose.model("Order", orderSchema);
 

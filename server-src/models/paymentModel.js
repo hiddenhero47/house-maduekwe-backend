@@ -36,15 +36,25 @@ const paymentSchema = new mongoose.Schema(
       min: 0,
     },
 
+    transaction: {
+      type: Object,
+    },
+
     currency: {
       type: String,
       required: true,
     },
 
     provider: {
-      type: String, // paystack, stripe, flutterwave, etc
-      required: true,
-      index: true,
+      id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "PaymentProvider",
+        required: true,
+      },
+      name: {
+        type: String,
+        required: true,
+      },
     },
 
     reference: {
@@ -75,11 +85,14 @@ const paymentSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 paymentSchema.index({ user: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
+paymentSchema.index({ orderId: 1 });
+paymentSchema.index({ "provider.id": 1 });
+paymentSchema.index({ reference: 1 });
 
 const Payment = mongoose.model("Payment", paymentSchema);
 
