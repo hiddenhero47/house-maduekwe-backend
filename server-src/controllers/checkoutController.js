@@ -1,15 +1,11 @@
 const mongoose = require("mongoose");
 const Cart = require("../models/cartModel");
 const { Address } = require("../models/addressModel");
-const { ShopItem } = require("../models/shopItemModel");
-const { PaymentProvider } = require("../models/paymentProviderModel");
 const { ExportFee } = require("../models/exportFeeModel");
 const asyncHandler = require("express-async-handler");
 const { ORDER_STATUS, Order } = require("../models/orderModel");
 const { PAYMENT_STATUS, Payment } = require("../models/paymentModel");
-const {
-  checkoutValidationSchema,
-} = require("../validations/checkoutValidation");
+const checkoutValidationSchema = require("../validations/checkoutValidation");
 
 // @desc Confirmation & agreement on orders
 // @route POST /api/orders/confirm-checkout
@@ -27,17 +23,15 @@ const confirmCheckout = asyncHandler(async (req, res) => {
       totalAmount: summary.order.totalAmount,
       totalVat: summary.order.totalVat,
       shippingFee: summary.order.shippingFee,
-      transactionFee: summary.order.transactionFee,
       currency: summary.order.currency,
       status: ORDER_STATUS.PENDING,
     },
 
     payment: {
-      provider: summary.payment.provider,
+      user: summary.user._id,
+      userEmail: summary.user.email,
       amountToPay: summary.payment.amountToPay,
-      transactionFee: summary.payment.transactionFee,
       currency: summary.payment.currency,
-      transaction: summary.payment.transaction,
       status: PAYMENT_STATUS.PENDING,
     },
   });
@@ -64,12 +58,12 @@ const checkout = asyncHandler(async (req, res) => {
       [
         {
           user: user._id,
+          userEmail: user.email,
           items: order.items,
           address,
           totalAmount: order.totalAmount,
           totalVat: order.totalVat,
           shippingFee: order.shippingFee,
-          transactionFee: order.transactionFee,
           status: ORDER_STATUS.PENDING,
           shippedBy: "Internal",
         },
@@ -83,14 +77,8 @@ const checkout = asyncHandler(async (req, res) => {
         {
           orderId: createdOrder[0]._id,
           user: user._id,
-          provider: payment.provider,
+          userEmail: user.email,
           amountToPay: payment.amountToPay,
-          transactionFee: payment.transactionFee,
-          transaction: {
-            currency: payment.currency,
-            amount: payment.amountToPay,
-            userEmail: user.email,
-          },
           currency: payment.currency,
           status: PAYMENT_STATUS.PENDING,
         },
@@ -121,13 +109,6 @@ const checkout = asyncHandler(async (req, res) => {
     res.status(201).json({
       order: createdOrder[0],
       payment: createdPayment[0],
-
-      transaction: {
-        amount: payment.amountToPay,
-        currency: payment.currency,
-        userEmail: user.email,
-        reference: createdPayment[0]._id,
-      },
     });
   } catch (error) {
     await session.abortTransaction();
@@ -140,7 +121,7 @@ const checkout = asyncHandler(async (req, res) => {
 
 // Checkout Functions
 const getCheckoutData = async (req) => {
-  const { itemList, selectedAddress, paymentMethod } = req.body;
+  const { itemList, selectedAddress } = req.body;
   const user = req.user;
 
   let address = null;
@@ -181,18 +162,6 @@ const getCheckoutData = async (req) => {
 
     if (!address) {
       throw new Error("Address not found");
-    }
-  }
-
-  // 💳 Get payment provider
-  if (paymentMethod) {
-    paymentProvider = await PaymentProvider.findOne({
-      _id: paymentMethod,
-      isActive: true,
-    }).lean();
-
-    if (!paymentProvider) {
-      throw new Error("Payment provider not available");
     }
   }
 
@@ -338,8 +307,7 @@ const calculateTransactionFee = (paymentProvider, amount) => {
 };
 
 const buildCheckoutSummary = async (req) => {
-  const { user, items, address, paymentProvider, currency } =
-    await getCheckoutData(req);
+  const { user, items, address, currency } = await getCheckoutData(req);
 
   // 🧾 Items totals
   const { totalAmount, totalVat } = checkoutItemsTotals(items);
@@ -354,12 +322,7 @@ const buildCheckoutSummary = async (req) => {
     shippingFee = shipping.shippingFee;
   }
 
-  const subTotal = roundMoney(totalAmount + totalVat + shippingFee);
-
-  // 💳 Transaction fee
-  const transactionCalc = calculateTransactionFee(paymentProvider, subTotal);
-
-  const amountToPay = roundMoney(subTotal + transactionCalc.transactionFee);
+  const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
 
   // 📦 Order item snapshot (schema-compliant)
   const orderItems = items.map((item) => ({
@@ -373,26 +336,18 @@ const buildCheckoutSummary = async (req) => {
   return {
     user,
     address,
-    paymentProvider,
 
     order: {
       items: orderItems,
       totalAmount,
       totalVat,
       shippingFee,
-      transactionFee: transactionCalc.transactionFee,
-      currency: currency,
+      currency,
     },
 
     payment: {
       amountToPay,
-      transactionFee: transactionCalc.transactionFee,
-      transaction: transactionCalc,
       currency: currency,
-      provider: {
-        _id: paymentProvider._id,
-        name: paymentProvider.provider,
-      },
     },
   };
 };

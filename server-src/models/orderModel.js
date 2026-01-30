@@ -84,12 +84,6 @@ const orderSchema = new mongoose.Schema(
       min: 0,
     },
 
-    transactionFee: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-
     shippingFee: {
       type: Number,
       default: 0,
@@ -100,6 +94,12 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: "User",
+      index: true,
+    },
+
+    userEmail: {
+      type: String,
+      required: true,
     },
 
     updatedBy: {
@@ -119,7 +119,7 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
-paymentSchema.index({ paymentId: 1 })
+paymentSchema.index({ paymentId: 1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

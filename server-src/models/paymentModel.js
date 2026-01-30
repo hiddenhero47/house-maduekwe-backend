@@ -36,10 +36,6 @@ const paymentSchema = new mongoose.Schema(
       min: 0,
     },
 
-    transaction: {
-      type: Object,
-    },
-
     currency: {
       type: String,
       required: true,
@@ -73,6 +69,11 @@ const paymentSchema = new mongoose.Schema(
       index: true,
     },
 
+    userEmail: {
+      type: String,
+      required: true,
+    },
+
     updatedBy: {
       id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -81,6 +82,11 @@ const paymentSchema = new mongoose.Schema(
       email: {
         type: String,
       },
+    },
+
+    isDuplicate: {
+      type: Boolean,
+      default: false,
     },
   },
   {
