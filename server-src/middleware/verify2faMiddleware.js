@@ -22,7 +22,7 @@ const verify2fa = (require2fa = true) =>
     // If 2FA enabled but token missing
     const token = req.headers["x-2fa-token"] || req.body?.token;
     if (!token) {
-      res.status(403);
+      res.status(400);
       const err = new Error("Two-factor authentication token required");
       err.code = "2FA_REQUIRED";
       throw err;

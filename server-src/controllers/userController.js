@@ -75,7 +75,7 @@ const loginUser = asyncHandler(async (req, res) => {
     if (user.user2fa.enable) {
       if (!token) {
         const err = new Error("Invalid 2FA token");
-        err.code = "2FA_INVALID";
+        err.code = "2FA_REQUIRED";
         res.status(400);
         throw err;
       }

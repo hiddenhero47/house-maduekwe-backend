@@ -44,7 +44,7 @@ app.use(
 app.use(handleCors);
 
 app.use("/api/setup", require("./routes/setupRoutes"));
-app.use("/api/users", require("./routes/useRoutes"));
+app.use("/api/user", require("./routes/userRoutes"));
 app.use("/api/addresses", require("./routes/addressRoutes"));
 app.use("/api/attributes", require("./routes/attributeRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
