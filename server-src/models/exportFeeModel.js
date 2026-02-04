@@ -22,6 +22,11 @@ const exportFeeSchema = new mongoose.Schema(
       trim: true,
       unique: true,
       index: true,
+      uppercase: true,
+      match: [
+        /^[A-Z]{2}$/,
+        "country must be a valid 2-letter country code (e.g. NG, US)",
+      ],
     },
 
     defaultAmount: {
