@@ -96,9 +96,7 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ user: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
-paymentSchema.index({ orderId: 1 });
 paymentSchema.index({ "provider.id": 1 });
-paymentSchema.index({ reference: 1 });
 
 const Payment = mongoose.model("Payment", paymentSchema);
 

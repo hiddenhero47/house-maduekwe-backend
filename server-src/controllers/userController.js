@@ -218,6 +218,19 @@ const googleLogin = asyncHandler(async (req, res) => {
       picture,
     });
   } else {
+    const duplicateProvider = await User.findOne({
+      "authProviders.provider": "google",
+      "authProviders.providerId": sub,
+    });
+
+    if (
+      duplicateProvider &&
+      duplicateProvider._id.toString() !== user._id.toString()
+    ) {
+      res.status(409);
+      throw new Error("This Google account is already linked to another user");
+    }
+
     const alreadyLinked = user.authProviders?.some(
       (p) => p.provider === "google",
     );
@@ -303,6 +316,19 @@ const appleLogin = asyncHandler(async (req, res) => {
       providerId: sub,
     });
   } else {
+    const duplicateProvider = await User.findOne({
+      "authProviders.provider": "apple",
+      "authProviders.providerId": sub,
+    });
+
+    if (
+      duplicateProvider &&
+      duplicateProvider._id.toString() !== user._id.toString()
+    ) {
+      res.status(409);
+      throw new Error("This Apple account is already linked to another user");
+    }
+
     const alreadyLinked = user.authProviders?.some(
       (p) => p.provider === "apple",
     );

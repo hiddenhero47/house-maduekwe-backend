@@ -39,8 +39,9 @@ const exportFeeSchema = new mongoose.Schema(
       type: [stateFeeSchema],
       default: [],
       validate: {
-        validator: function (states) {
-          return !hasDuplicateStates(states);
+        validator(states) {
+          const set = new Set(states.map((s) => s.state.toLowerCase().trim()));
+          return set.size === states.length;
         },
         message: "Duplicate states are not allowed",
       },

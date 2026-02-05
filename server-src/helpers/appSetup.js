@@ -12,8 +12,8 @@ const ensureStripePaymentProvider = async () => {
     if (!existingProvider) {
       const provider = await PaymentProvider.create({
         provider: providerName,
-        percentageFee: 0, // adjust if needed
-        flatFee: 0,
+        percentageFee: 2.9, // adjust if needed
+        flatFee: 0.30,
         isActive: true,
       });
 
@@ -41,18 +41,18 @@ const ensureStripePaymentProvider = async () => {
 const ensureUSExportFee = async () => {
   try {
     const countryCode = "US";
-    const texasState = "texas";
+    const texasState = "Texas";
 
     let exportFee = await ExportFee.findOne({ country: countryCode });
 
     if (!exportFee) {
       exportFee = await ExportFee.create({
         country: countryCode,
-        defaultAmount: 0, // set your default export fee
+        defaultAmount: 10, // set your default export fee
         states: [
           {
             state: texasState,
-            amount: 0, // Texas-specific fee
+            amount: 5, // Texas-specific fee
           },
         ],
         isActive: true,
@@ -71,7 +71,7 @@ const ensureUSExportFee = async () => {
     if (!texasExists) {
       exportFee.states.push({
         state: texasState,
-        amount: 0,
+        amount: 5,
       });
 
       await exportFee.save();
