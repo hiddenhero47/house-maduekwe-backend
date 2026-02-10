@@ -9,6 +9,7 @@ const {
   deleteFile,
   updateFile,
 } = require("../helpers/fileManager");
+const validateAvatar = require("../validations/userFileValidation");
 
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -75,7 +76,7 @@ const loginUser = asyncHandler(async (req, res) => {
     if (user.user2fa.enable) {
       if (!token) {
         const err = new Error("Invalid 2FA token");
-        err.code = "2FA_INVALID";
+        err.code = "2FA_REQUIRED";
         res.status(400);
         throw err;
       }
@@ -218,6 +219,19 @@ const googleLogin = asyncHandler(async (req, res) => {
       picture,
     });
   } else {
+    const duplicateProvider = await User.findOne({
+      "authProviders.provider": "google",
+      "authProviders.providerId": sub,
+    });
+
+    if (
+      duplicateProvider &&
+      duplicateProvider._id.toString() !== user._id.toString()
+    ) {
+      res.status(409);
+      throw new Error("This Google account is already linked to another user");
+    }
+
     const alreadyLinked = user.authProviders?.some(
       (p) => p.provider === "google",
     );
@@ -303,6 +317,19 @@ const appleLogin = asyncHandler(async (req, res) => {
       providerId: sub,
     });
   } else {
+    const duplicateProvider = await User.findOne({
+      "authProviders.provider": "apple",
+      "authProviders.providerId": sub,
+    });
+
+    if (
+      duplicateProvider &&
+      duplicateProvider._id.toString() !== user._id.toString()
+    ) {
+      res.status(409);
+      throw new Error("This Apple account is already linked to another user");
+    }
+
     const alreadyLinked = user.authProviders?.some(
       (p) => p.provider === "apple",
     );
@@ -387,6 +414,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
       uploadResult = await updateFile({
         oldFilePath: user.avatar.path,
         req,
+        schema: validateAvatar,
         allowedTypes: ["image/jpeg", "image/png", "image/webp"],
       });
     } else {

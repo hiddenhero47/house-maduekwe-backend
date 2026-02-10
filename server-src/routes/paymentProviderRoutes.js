@@ -31,3 +31,5 @@ router.delete(
 
 // client
 router.get("/client", getClientPaymentProviders);
+
+module.exports = router;

@@ -22,6 +22,11 @@ const exportFeeSchema = new mongoose.Schema(
       trim: true,
       unique: true,
       index: true,
+      uppercase: true,
+      match: [
+        /^[A-Z]{2}$/,
+        "country must be a valid 2-letter country code (e.g. NG, US)",
+      ],
     },
 
     defaultAmount: {
@@ -34,8 +39,9 @@ const exportFeeSchema = new mongoose.Schema(
       type: [stateFeeSchema],
       default: [],
       validate: {
-        validator: function (states) {
-          return !hasDuplicateStates(states);
+        validator(states) {
+          const set = new Set(states.map((s) => s.state.toLowerCase().trim()));
+          return set.size === states.length;
         },
         message: "Duplicate states are not allowed",
       },

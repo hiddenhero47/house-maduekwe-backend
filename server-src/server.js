@@ -5,13 +5,18 @@ const colors = require("colors");
 const dotenv = require("dotenv").config();
 const { errorHandler } = require("./middleware/errorMiddleware");
 const connectDB = require("./config/db");
-const port = process.env.PORT || 6000;
+const port = process.env.PORT || 4000;
 const path = require("path");
 const handleCors = require("./middleware/corsMiddleware");
 
 connectDB();
 
 const app = express();
+// logger first
+// app.use((req, res, next) => {
+//   console.log(`Incoming request: ${req.method} ${req.url}`);
+//   next();
+// });
 
 const publicPath = path.join(__dirname, "public");
 
@@ -43,8 +48,14 @@ app.use(
 //middleware cors
 app.use(handleCors);
 
+// test route
+app.get("/api/test", (req, res) => {
+  console.log("Test route hit!");
+  res.json({ message: "Hello from backend!" });
+});
+
 app.use("/api/setup", require("./routes/setupRoutes"));
-app.use("/api/users", require("./routes/useRoutes"));
+app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/addresses", require("./routes/addressRoutes"));
 app.use("/api/attributes", require("./routes/attributeRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));

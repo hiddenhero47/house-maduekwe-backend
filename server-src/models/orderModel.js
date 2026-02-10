@@ -119,7 +119,6 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
-paymentSchema.index({ paymentId: 1 });
 
 const Order = mongoose.model("Order", orderSchema);
 
