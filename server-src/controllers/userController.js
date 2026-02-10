@@ -9,6 +9,7 @@ const {
   deleteFile,
   updateFile,
 } = require("../helpers/fileManager");
+const validateAvatar = require("../validations/userFileValidation");
 
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -413,6 +414,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
       uploadResult = await updateFile({
         oldFilePath: user.avatar.path,
         req,
+        schema: validateAvatar,
         allowedTypes: ["image/jpeg", "image/png", "image/webp"],
       });
     } else {
