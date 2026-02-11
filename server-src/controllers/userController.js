@@ -15,6 +15,7 @@ const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const appleSignin = require("apple-signin-auth");
+const { enable } = require("colors");
 
 // @desc Register new user
 // @route POST /api/users
@@ -54,6 +55,9 @@ const registerUser = asyncHandler(async (req, res) => {
       phoneNumber: user.phoneNumber,
       avatar: user.avatar,
       role: user.role,
+      user2fa: {
+        enable: user.user2fa?.enable || false,
+      },
       token: generateToken(user._id),
     });
   } else {
@@ -99,6 +103,9 @@ const loginUser = asyncHandler(async (req, res) => {
       phoneNumber: user.phoneNumber,
       avatar: user.avatar,
       role: user.role,
+      user2fa: {
+        enable: user.user2fa?.enable || false,
+      },
       token: generateToken(user._id),
     });
   } else {
@@ -168,13 +175,67 @@ const verify2fa = asyncHandler(async (req, res) => {
   res.json({ message: "2FA enabled successfully" });
 });
 
+// @desc Toggle 2FA on/off
+// @route PUT /api/users/2fa/toggle
+// @access Private
+const toggle2fa = asyncHandler(async (req, res) => {
+  const { enable } = req.body;
+
+  if (typeof enable !== "boolean") {
+    res.status(400);
+    throw new Error("Enable must be true or false");
+  }
+
+  const user = await User.findById(req.user.id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  if (enable === true) {
+    if (user.user2fa?.enable) {
+      res.status(400);
+      throw new Error("2FA is already enabled");
+    }
+
+    if (!user.user2fa?.secret) {
+      res.status(400);
+      throw new Error("Please complete 2FA setup first");
+    }
+
+    user.user2fa.enable = true;
+    await user.save();
+
+    return res.json({
+      message: "2FA enabled successfully",
+      user2fa: { enable: true },
+    });
+  }
+
+  if (enable === false) {
+    if (!user.user2fa?.enable) {
+      res.status(400);
+      throw new Error("2FA is already disabled");
+    }
+
+    user.user2fa.enable = false;
+
+    await user.save();
+
+    return res.json({
+      message: "2FA disabled successfully",
+      user2fa: { enable: false },
+    });
+  }
+});
+
 // @desc Get user data
 // @route GET /api/users/geMe
 // @access Privet
 const getMe = asyncHandler(async (req, res) => {
-  const { _id, name, email, phoneNumber, avatar, role } = await User.findById(
-    req.user.id,
-  );
+  const { _id, name, email, phoneNumber, avatar, role, user2fa } =
+    await User.findById(req.user.id);
   res.status(200).json({
     id: _id,
     name,
@@ -182,6 +243,9 @@ const getMe = asyncHandler(async (req, res) => {
     phoneNumber,
     avatar,
     role,
+    user2fa: {
+      enable: user2fa?.enable || false,
+    },
   });
 });
 
@@ -441,6 +505,9 @@ const updateUserProfile = asyncHandler(async (req, res) => {
       phoneNumber: user.phoneNumber,
       avatar: user.avatar,
       role: user.role,
+      user2fa: {
+        enable: user.user2fa?.enable || false,
+      },
     },
   });
 });
@@ -534,4 +601,5 @@ module.exports = {
   appleLogin,
   updateUserProfile,
   registerAdmin,
+  toggle2fa,
 };
