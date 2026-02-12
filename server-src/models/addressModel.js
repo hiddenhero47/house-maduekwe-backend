@@ -23,7 +23,7 @@ const addressSchema = mongoose.Schema(
     },
     description: {
       type: String,
-      required: [true, "Please add a description to your address"],
+      default: "",
     },
     fullAddress: {
       type: String,
@@ -39,7 +39,7 @@ const addressSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Pre-save hook to enforce limit
@@ -49,7 +49,7 @@ addressSchema.pre("save", async function (next) {
 
   if (count >= MAX_ADDRESSES) {
     const error = new Error(
-      `You can only have a maximum of ${MAX_ADDRESSES} addresses`
+      `You can only have a maximum of ${MAX_ADDRESSES} addresses`,
     );
     error.status = 400;
     return next(error);

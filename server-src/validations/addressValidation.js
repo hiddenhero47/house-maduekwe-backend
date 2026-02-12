@@ -13,6 +13,7 @@ const addressValidationSchema = yup.object({
   description: yup.string().required("Description is required"),
   coordinates: yup.mixed().optional(),
   fullAddress: yup.string().required("Full address is required"),
+  isDefault: yup.boolean().optional(),
 });
 
 module.exports = addressValidationSchema;
