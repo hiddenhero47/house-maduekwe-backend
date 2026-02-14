@@ -12,6 +12,7 @@ const handleCors = require("./middleware/corsMiddleware");
 connectDB();
 
 const app = express();
+
 // logger first
 // app.use((req, res, next) => {
 //   console.log(`Incoming request: ${req.method} ${req.url}`);
@@ -22,9 +23,9 @@ const publicPath = path.join(__dirname, "public");
 
 //middleware for body parser
 const forms = multer();
-app.use(express.json());
+app.use(express.json({ limit: '3mb' }));
 app.use(forms.any());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '3mb' }));
 
 // Declaring Static Folder
 app.use(express.static(path.join(__dirname, "public")));

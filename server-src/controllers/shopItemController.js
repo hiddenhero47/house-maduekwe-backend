@@ -3,7 +3,7 @@ const { ShopItem } = require("../models/shopItemModel");
 const {
   shopItemValidationSchema,
 } = require("../validations/shopItemValidation");
-const { fileValidationSchema } = require("../validations/itemImageValidation");
+const fileValidationSchema  = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
 const {
   normalizeData,

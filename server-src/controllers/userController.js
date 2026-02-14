@@ -485,6 +485,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
       // 🆕 First-time avatar upload
       uploadResult = await uploadHandler({
         req,
+        schema: validateAvatar,
         allowedTypes: ["image/jpeg", "image/png", "image/webp"],
       });
     }
