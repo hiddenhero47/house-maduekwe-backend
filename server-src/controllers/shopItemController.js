@@ -3,11 +3,12 @@ const { ShopItem } = require("../models/shopItemModel");
 const {
   shopItemValidationSchema,
 } = require("../validations/shopItemValidation");
-const fileValidationSchema  = require("../validations/itemImageValidation");
+const fileValidationSchema = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
 const {
   normalizeData,
   parseClassTagsFilter,
+  sanitizeAttributes,
 } = require("../helpers/shopItemHelper");
 const mongoose = require("mongoose");
 const ItemGroup = require("../models/itemGroupModel");
@@ -62,7 +63,7 @@ const getShopItems = asyncHandler(async (req, res) => {
     } catch (e) {
       res.status(400);
       throw new Error(
-        "Invalid attributes filter format — must be a valid JSON array"
+        "Invalid attributes filter format — must be a valid JSON array",
       );
     }
   }
@@ -166,7 +167,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
   if (Array.isArray(removeImages) && removeImages.length > 0) {
     const removePaths = removeImages.map((r) => r.path);
     imageCatalog = imageCatalog.filter(
-      (img) => !removePaths.includes(img.path)
+      (img) => !removePaths.includes(img.path),
     );
 
     for (const path of removePaths) {
@@ -195,8 +196,22 @@ const updateShopItem = asyncHandler(async (req, res) => {
     }
   }
 
+  let sanitizedAttributes = itemData.attributes;
+
+  // Only run if attributes are being updated
+  if (Array.isArray(itemData.attributes)) {
+    sanitizedAttributes = await sanitizeAttributes(
+      itemData.attributes,
+      removeImages,
+    );
+  }
+
   // Sanitize
-  const updatePayload = { ...itemData, imageCatalog };
+  const updatePayload = {
+    ...itemData,
+    imageCatalog,
+    attributes: sanitizedAttributes,
+  };
   Object.keys(updatePayload).forEach((key) => {
     if (key !== "imageCatalog" && updatePayload[key] === undefined) {
       delete updatePayload[key];
@@ -210,7 +225,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
     {
       new: true,
       runValidators: true,
-    }
+    },
   )
     .populate("category", "name")
     .populate({
@@ -320,7 +335,7 @@ const getRelatedShopItems = asyncHandler(async (req, res) => {
       ...new Set(
         groups
           .flatMap((g) => g.shopItems.map(String))
-          .filter((itemId) => itemId !== id)
+          .filter((itemId) => itemId !== id),
       ),
     ];
 
