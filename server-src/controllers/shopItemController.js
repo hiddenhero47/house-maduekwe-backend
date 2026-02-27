@@ -6,6 +6,7 @@ const {
 const fileValidationSchema = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
 const {
+  parseMultipartData,
   normalizeData,
   parseClassTagsFilter,
   sanitizeAttributes,
@@ -85,11 +86,13 @@ const getShopItems = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
-    page: Number(page),
-    limit: Number(limit),
-    total,
-    totalPages: Math.ceil(total / limit),
-    items,
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    data: items,
   });
 });
 
@@ -97,10 +100,11 @@ const getShopItems = asyncHandler(async (req, res) => {
 // @route  POST /api/shop-items
 // @access Private (admin/super_admin)
 const createShopItem = asyncHandler(async (req, res) => {
-  const { base64, url, ...itemData } = normalizeData(req.body);
+  const parsedData = parseMultipartData(req);
+  const { base64, url, ...itemData } = normalizeData(parsedData);
 
   // ✅ Ensure required image data
-  if (!req.files && !base64 && !url) {
+  if ((!req.files || req.files.length === 0) && !base64 && !url) {
     res.status(400);
     throw new Error("Image catalog is required. Please add item images.");
   }
@@ -143,7 +147,7 @@ const createShopItem = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: "Shop item created successfully",
-    item: populatedItem,
+    data: populatedItem,
   });
 });
 
@@ -157,7 +161,8 @@ const updateShopItem = asyncHandler(async (req, res) => {
     throw new Error("Shop item not found");
   }
 
-  const { base64, url, removeImages, ...itemData } = normalizeData(req.body);
+  const parsedData = parseMultipartData(req);
+  const { base64, url, removeImages, ...itemData } = normalizeData(parsedData);
   await shopItemValidationSchema.validate(itemData, { abortEarly: false });
 
   let imageCatalog = [...item.imageCatalog];
@@ -238,7 +243,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Shop item updated successfully",
-    item: updatedItem,
+    data: updatedItem,
     ...(imageLogs.length > 0 && { imageLogs }), // only include if any issues
   });
 });
@@ -295,7 +300,7 @@ const getShopItemById = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    item,
+    data: item,
   });
 });
 
@@ -418,7 +423,7 @@ const getRelatedShopItems = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     total: populatedItems.length,
-    items: populatedItems,
+    data: populatedItems,
   });
 });
 

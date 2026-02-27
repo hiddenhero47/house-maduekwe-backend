@@ -17,7 +17,7 @@ const handleCors = (req, res, next) => {
   res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
-    console.log(`OPTIONS preflight OK → ${req.url}`);
+    // console.log(`OPTIONS preflight OK → ${req.url}`);
     return res.status(204).end(); // 204 No Content is cleaner than 200
   }
 

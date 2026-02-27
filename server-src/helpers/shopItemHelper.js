@@ -1,5 +1,15 @@
 const { Attribute } = require("../models/attributeModel");
 
+const parseMultipartData = (req) => {
+  try {
+    return req.body.data ? JSON.parse(req.body.data) : {};
+  } catch (err) {
+    const error = new Error("Invalid JSON format in 'data' field.");
+    error.statusCode = 400;
+    throw error;
+  }
+};
+
 const normalizeData = (payload = {}) => {
   const normalized = { ...payload };
 
@@ -136,4 +146,9 @@ const sanitizeAttributes = async (attributes = [], removeImages = []) => {
   return sanitized;
 };
 
-module.exports = { normalizeData, parseClassTagsFilter, sanitizeAttributes };
+module.exports = {
+  normalizeData,
+  parseClassTagsFilter,
+  sanitizeAttributes,
+  parseMultipartData,
+};
