@@ -1,7 +1,7 @@
 const yup = require("yup");
 
 const cartItemSchema = yup.object().shape({
-  shopItemId: yup.string().required("shopItemId is required"),
+  shopItem: yup.string().required("shopItem is required"),
   quantity: yup
     .number()
     .min(1, "Quantity must be at least 1")
@@ -13,7 +13,7 @@ const cartItemSchema = yup.object().shape({
         name: yup.string().optional(),
         value: yup.string().optional(),
         _id: yup.string().required(),
-      })
+      }),
     )
     .default([]),
 });

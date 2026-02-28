@@ -1,6 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const Cart = require("../models/cartModel");
-const ShopItem = require("../models/shopItemModel");
+const { ShopItem } = require("../models/shopItemModel");
 const { addToCartSchema } = require("../validations/cartValidation");
 
 // @desc    Get user cart
@@ -38,10 +38,11 @@ const addToCart = asyncHandler(async (req, res) => {
   const { itemList } = req.body; // [{ shopItemId, quantity, selectedAttributes }, ...]
 
   // ✅ Validate shop items exist
-  const shopItemIds = itemList.map((i) => i.shopItemId);
-  const shopItems = await ShopItem.find({ _id: { $in: shopItemIds } });
+  const shopItemIds = itemList.map((i) => i.shopItem);
+  const uniqueIds = [...new Set(shopItemIds.map(String))];
+  const shopItemsDB = await ShopItem.find({ _id: { $in: uniqueIds } });
 
-  if (shopItems.length !== shopItemIds.length) {
+  if (shopItemsDB.length !== uniqueIds.length) {
     res.status(400);
     throw new Error("One or more shop items do not exist");
   }
@@ -63,7 +64,7 @@ const addToCart = asyncHandler(async (req, res) => {
   await cart.save();
 
   // ✅ Populate shopItemId before returning
-  const populatedCart = await cart.populate("itemList.shopItemId");
+  const populatedCart = await cart.populate("itemList.shopItem");
 
   res.status(201).json(populatedCart);
 });
@@ -91,7 +92,7 @@ const removeFromCart = asyncHandler(async (req, res) => {
 
   await cart.save();
 
-  const populatedCart = await cart.populate("itemList.shopItemId");
+  const populatedCart = await cart.populate("itemList.shopItem");
 
   res.json(populatedCart);
 });
