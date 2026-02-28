@@ -7,12 +7,22 @@ const { addToCartSchema } = require("../validations/cartValidation");
 // @route   GET /api/cart
 // @access  Private
 const getCart = asyncHandler(async (req, res) => {
-  const cart = await Cart.findOne({ user: req.user._id }).populate(
-    "itemList.shopItemId"
+  let cart = await Cart.findOne({ user: req.user._id }).populate(
+    "itemList.shopItem",
   );
 
   if (!cart) {
     return res.json({ message: "Cart is empty", itemList: [] });
+  }
+
+  // 🔥 Remove items whose ShopItem no longer exists
+  const originalLength = cart.itemList.length;
+
+  cart.itemList = cart.itemList.filter((item) => item.shopItem !== null);
+
+  // Only save if something was removed
+  if (cart.itemList.length !== originalLength) {
+    await cart.save();
   }
 
   res.json(cart);
@@ -76,7 +86,7 @@ const removeFromCart = asyncHandler(async (req, res) => {
   }
 
   cart.itemList = cart.itemList.filter(
-    (item) => !itemIds.includes(item._id.toString())
+    (item) => !itemIds.includes(item._id.toString()),
   );
 
   await cart.save();

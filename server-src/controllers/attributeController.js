@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const { Attribute, attributeType } = require("../models/attributeModel");
+const { ShopItem } = require("../models/shopItemModel");
 
 // @desc    Create new attribute
 // @route   POST /api/attributes
@@ -103,15 +104,36 @@ const updateAttribute = asyncHandler(async (req, res) => {
 // @route   DELETE /api/attributes/:id
 // @access  Private (admin/super_admin)
 const deleteAttribute = asyncHandler(async (req, res) => {
-  const attribute = await Attribute.findById(req.params.id);
+  const { id } = req.params;
 
+  const attribute = await Attribute.findById(id);
   if (!attribute) {
     res.status(404);
     throw new Error("Attribute not found");
   }
 
-  await Attribute.deleteOne({ _id: req.params.id });
-  res.json({ id: req.params.id });
+  // 🔎 Check if any shop item is using this attribute
+  const itemsUsingAttribute = await ShopItem.countDocuments({
+    "attributes.Attribute": id,
+  });
+
+  if (itemsUsingAttribute > 0) {
+    return res.status(409).json({
+      success: false,
+      message:
+        "This attribute is currently used by shop items. Remove it from those items before deleting.",
+      itemsUsingAttribute,
+    });
+  }
+
+  // ✅ Safe to delete
+  await Attribute.deleteOne({ _id: id });
+
+  res.json({
+    success: true,
+    message: "Attribute deleted successfully",
+    id,
+  });
 });
 
 module.exports = {
