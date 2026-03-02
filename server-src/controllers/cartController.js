@@ -7,9 +7,16 @@ const { addToCartSchema } = require("../validations/cartValidation");
 // @route   GET /api/cart
 // @access  Private
 const getCart = asyncHandler(async (req, res) => {
-  let cart = await Cart.findOne({ user: req.user._id }).populate(
-    "itemList.shopItem",
-  );
+  let cart = await Cart.findOne({ user: req.user._id }).populate({
+    path: "itemList.shopItem",
+    populate: [
+      { path: "category", select: "name" },
+      {
+        path: "attributes.Attribute",
+        select: "name value type display",
+      },
+    ],
+  });
 
   if (!cart) {
     return res.json({ message: "Cart is empty", itemList: [] });
@@ -18,7 +25,7 @@ const getCart = asyncHandler(async (req, res) => {
   // 🔥 Remove items whose ShopItem no longer exists
   const originalLength = cart.itemList.length;
 
-  cart.itemList = cart.itemList.filter((item) => item.shopItem !== null);
+  cart.itemList = cart.itemList.filter((item) => item.shopItem);
 
   // Only save if something was removed
   if (cart.itemList.length !== originalLength) {
