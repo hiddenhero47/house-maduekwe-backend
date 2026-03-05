@@ -144,6 +144,47 @@ const getOrders = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc Get order by id with payment
+// @route GET /api/orders/:id
+// @access Private (Admin or Owner)
+const getOrderById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400);
+    throw new Error("Invalid order id");
+  }
+
+  const order = await Order.findById(id)
+    .populate("user", "name email")
+    .lean();
+
+  if (!order) {
+    res.status(404);
+    throw new Error("Order not found");
+  }
+
+  // Optional security: user can only access their own order
+  if (
+    req.user.role !== ROLE.ADMIN &&
+    order.user._id.toString() !== req.user._id.toString()
+  ) {
+    res.status(403);
+    throw new Error("Not authorized to view this order");
+  }
+
+  let payment = null;
+
+  if (order.paymentId) {
+    payment = await Payment.findById(order.paymentId).lean();
+  }
+
+  res.status(200).json({
+    order,
+    payment,
+  });
+});
+
 // @desc Update order status
 // @route PATCH /api/orders/:id/status
 // @access Private (Admin)
@@ -189,5 +230,6 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 module.exports = {
   getMyOrders,
   getOrders,
+  getOrderById,
   updateOrderStatus,
 };
