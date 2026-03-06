@@ -15,7 +15,7 @@ const objectIdExists = (Model, fieldName) =>
         if (!value) return true; // let required() handle emptiness
         const exists = await Model.exists({ _id: value });
         return !!exists;
-      }
+      },
     );
 
 // ✅ Image Catalog Schema
@@ -35,12 +35,21 @@ const shopItemValidationSchema = yup.object({
     .oneOf(Object.values(STATUS), "Invalid status")
     .default("available"),
   description: yup.string().optional(),
-  price: yup.number().required("Price is required"),
-  vat: yup.number().required("VAT percentage is required"),
-  currency: yup.string().required("Currency is required"),
+  price: yup
+    .number()
+    .required("Price is required")
+    .min(1, "Price must be at least 1"),
+  vat: yup
+    .number()
+    .required("VAT percentage is required")
+    .min(0, "VAT cannot be negative"),
+  currency: yup
+    .string()
+    .required("Currency is required")
+    .matches(/^[A-Z]{3}$/, "Currency must be a valid 3-letter currency code"),
 
   category: objectIdExists(Category, "Category").required(
-    "Category is required"
+    "Category is required",
   ),
   subCategory: yup.string().optional(),
 
@@ -51,7 +60,7 @@ const shopItemValidationSchema = yup.object({
     .of(
       yup.object({
         Attribute: objectIdExists(Attribute, "Attribute").required(
-          "Attribute is required"
+          "Attribute is required",
         ),
         isDefault: yup.boolean().default(false),
         quantity: yup.number().min(0).optional(),
@@ -63,12 +72,12 @@ const shopItemValidationSchema = yup.object({
               id: yup.string().required(),
               fileName: yup.string().required(),
               path: yup.string().required(),
-              url: yup.string().url().required(),
+              url: yup.string().required(),
               mime: yup.string().required(),
-            })
+            }),
           )
           .optional(),
-      })
+      }),
     )
     .test(
       "unique-attributes",
@@ -78,7 +87,7 @@ const shopItemValidationSchema = yup.object({
         const ids = attributes.map((a) => a.Attribute);
         const uniqueIds = new Set(ids);
         return ids.length === uniqueIds.size;
-      }
+      },
     )
     .test(
       "single-default",
@@ -87,7 +96,7 @@ const shopItemValidationSchema = yup.object({
         if (!attributes) return true;
         const defaultCount = attributes.filter((a) => a.isDefault).length;
         return defaultCount <= 1;
-      }
+      },
     )
     .optional(),
 
@@ -104,7 +113,7 @@ const shopItemValidationSchema = yup.object({
     .test(
       "unique-tags",
       "Duplicate tags are not allowed",
-      (tags) => !tags || tags.length === new Set(tags).size
+      (tags) => !tags || tags.length === new Set(tags).size,
     )
     .optional(),
 });

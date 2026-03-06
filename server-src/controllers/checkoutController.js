@@ -138,7 +138,16 @@ const getCheckoutData = async (req) => {
 
   // 🛒 Get cart + items
   const cart = await Cart.findOne({ user: user._id })
-    .populate("itemList.shopItemId")
+    .populate({
+      path: "itemList.shopItem",
+      populate: [
+        { path: "category", select: "name" },
+        {
+          path: "attributes.Attribute",
+          select: "name value type display",
+        },
+      ],
+    })
     .lean();
 
   if (!cart || !Array.isArray(cart.itemList)) {
@@ -165,11 +174,9 @@ const getCheckoutData = async (req) => {
     }
   }
 
-  const currency = items[0].shopItemId.currency;
+  const currency = items[0].shopItem.currency;
 
-  const hasMixedCurrency = items.some(
-    (i) => i.shopItemId.currency !== currency,
-  );
+  const hasMixedCurrency = items.some((i) => i.shopItem.currency !== currency);
 
   if (hasMixedCurrency) {
     throw new Error("Mixed currencies are not allowed");
@@ -193,7 +200,7 @@ const checkoutItemsTotals = (items) => {
   const breakdown = [];
 
   for (const item of items) {
-    const shopItem = item.shopItemId;
+    const shopItem = item.shopItem;
 
     if (!shopItem) {
       throw new Error("Invalid shop item in cart");
@@ -226,7 +233,7 @@ const checkoutItemsTotals = (items) => {
     totalVat += itemVat;
 
     breakdown.push({
-      shopItemId: shopItem._id,
+      shopItem: shopItem._id,
       name: shopItem.name,
       unitPrice,
       quantity,
@@ -277,34 +284,34 @@ const resolveShippingFee = async ({ country, state }) => {
   };
 };
 
-const calculateTransactionFee = (paymentProvider, amount) => {
-  if (!paymentProvider) {
-    throw new Error("Payment provider is required");
-  }
+// const calculateTransactionFee = (paymentProvider, amount) => {
+//   if (!paymentProvider) {
+//     throw new Error("Payment provider is required");
+//   }
 
-  if (typeof amount !== "number" || amount < 0) {
-    throw new Error("Invalid transaction amount");
-  }
+//   if (typeof amount !== "number" || amount < 0) {
+//     throw new Error("Invalid transaction amount");
+//   }
 
-  const percentageFee = paymentProvider.percentageFee || 0;
-  const flatFee = paymentProvider.flatFee || 0;
+//   const percentageFee = paymentProvider.percentageFee || 0;
+//   const flatFee = paymentProvider.flatFee || 0;
 
-  // % fee
-  const percentageAmount = roundMoney((amount * percentageFee) / 100);
+//   // % fee
+//   const percentageAmount = roundMoney((amount * percentageFee) / 100);
 
-  // total transaction fee
-  const transactionFee = roundMoney(percentageAmount + flatFee);
+//   // total transaction fee
+//   const transactionFee = roundMoney(percentageAmount + flatFee);
 
-  return {
-    transactionFee,
-    breakdown: {
-      percentageFee,
-      percentageAmount,
-      flatFee,
-      total: transactionFee,
-    },
-  };
-};
+//   return {
+//     transactionFee,
+//     breakdown: {
+//       percentageFee,
+//       percentageAmount,
+//       flatFee,
+//       total: transactionFee,
+//     },
+//   };
+// };
 
 const buildCheckoutSummary = async (req) => {
   const { user, items, address, currency } = await getCheckoutData(req);
@@ -327,7 +334,7 @@ const buildCheckoutSummary = async (req) => {
   // 📦 Order item snapshot (schema-compliant)
   const orderItems = items.map((item) => ({
     shopItem: {
-      ...item.shopItemId,
+      ...item.shopItem,
     },
     quantity: item.quantity,
     selectedAttributes: item.selectedAttributes || [],

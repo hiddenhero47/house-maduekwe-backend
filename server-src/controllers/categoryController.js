@@ -5,8 +5,38 @@ const Category = require("../models/categoryModel");
 // @route   GET /api/categories
 // @access  Private (or Public depending on your needs)
 const getCategories = asyncHandler(async (req, res) => {
-  const categories = await Category.find().sort({ createdAt: -1 });
-  res.status(200).json(categories);
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Number(req.query.limit) || 20, 500);
+  const skip = (page - 1) * limit;
+
+  const { search } = req.query;
+
+  const filter = {};
+
+  // Optional: search by name (case-insensitive)
+  if (search) {
+    filter.name = { $regex: search.trim(), $options: "i" };
+  }
+
+  const [categories, total] = await Promise.all([
+    Category.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+
+    Category.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    data: categories,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 });
 
 // @desc    Create new category

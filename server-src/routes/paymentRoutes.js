@@ -14,6 +14,6 @@ const router = express.Router();
 router.get("/me", protect, getMyPayments);
 router.get("/", secureRole(ROLE.ADMIN, ROLE.SUPER_ADMIN), getPayments);
 router.post("/stripe-intent", protect, createStripeIntent);
-router.post("/stripe-callback", verifyWebhook, processStripeEvent);
+router.post("/:provider/callback", verifyWebhook, processStripeEvent);
 
 module.exports = router;

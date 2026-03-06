@@ -3,11 +3,13 @@ const { ShopItem } = require("../models/shopItemModel");
 const {
   shopItemValidationSchema,
 } = require("../validations/shopItemValidation");
-const { fileValidationSchema } = require("../validations/itemImageValidation");
+const fileValidationSchema = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
 const {
+  parseMultipartData,
   normalizeData,
   parseClassTagsFilter,
+  sanitizeAttributes,
 } = require("../helpers/shopItemHelper");
 const mongoose = require("mongoose");
 const ItemGroup = require("../models/itemGroupModel");
@@ -62,7 +64,7 @@ const getShopItems = asyncHandler(async (req, res) => {
     } catch (e) {
       res.status(400);
       throw new Error(
-        "Invalid attributes filter format — must be a valid JSON array"
+        "Invalid attributes filter format — must be a valid JSON array",
       );
     }
   }
@@ -84,11 +86,13 @@ const getShopItems = asyncHandler(async (req, res) => {
   ]);
 
   res.json({
-    page: Number(page),
-    limit: Number(limit),
-    total,
-    totalPages: Math.ceil(total / limit),
-    items,
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    data: items,
   });
 });
 
@@ -96,10 +100,11 @@ const getShopItems = asyncHandler(async (req, res) => {
 // @route  POST /api/shop-items
 // @access Private (admin/super_admin)
 const createShopItem = asyncHandler(async (req, res) => {
-  const { base64, url, ...itemData } = normalizeData(req.body);
+  const parsedData = parseMultipartData(req);
+  const { base64, url, ...itemData } = normalizeData(parsedData);
 
   // ✅ Ensure required image data
-  if (!req.files && !base64 && !url) {
+  if ((!req.files || req.files.length === 0) && !base64 && !url) {
     res.status(400);
     throw new Error("Image catalog is required. Please add item images.");
   }
@@ -142,7 +147,7 @@ const createShopItem = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: "Shop item created successfully",
-    item: populatedItem,
+    data: populatedItem,
   });
 });
 
@@ -156,7 +161,8 @@ const updateShopItem = asyncHandler(async (req, res) => {
     throw new Error("Shop item not found");
   }
 
-  const { base64, url, removeImages, ...itemData } = normalizeData(req.body);
+  const parsedData = parseMultipartData(req);
+  const { base64, url, removeImages, ...itemData } = normalizeData(parsedData);
   await shopItemValidationSchema.validate(itemData, { abortEarly: false });
 
   let imageCatalog = [...item.imageCatalog];
@@ -166,7 +172,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
   if (Array.isArray(removeImages) && removeImages.length > 0) {
     const removePaths = removeImages.map((r) => r.path);
     imageCatalog = imageCatalog.filter(
-      (img) => !removePaths.includes(img.path)
+      (img) => !removePaths.includes(img.path),
     );
 
     for (const path of removePaths) {
@@ -195,8 +201,22 @@ const updateShopItem = asyncHandler(async (req, res) => {
     }
   }
 
+  let sanitizedAttributes = itemData.attributes;
+
+  // Only run if attributes are being updated
+  if (Array.isArray(itemData.attributes)) {
+    sanitizedAttributes = await sanitizeAttributes(
+      itemData.attributes,
+      removeImages,
+    );
+  }
+
   // Sanitize
-  const updatePayload = { ...itemData, imageCatalog };
+  const updatePayload = {
+    ...itemData,
+    imageCatalog,
+    attributes: sanitizedAttributes,
+  };
   Object.keys(updatePayload).forEach((key) => {
     if (key !== "imageCatalog" && updatePayload[key] === undefined) {
       delete updatePayload[key];
@@ -210,7 +230,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
     {
       new: true,
       runValidators: true,
-    }
+    },
   )
     .populate("category", "name")
     .populate({
@@ -223,7 +243,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Shop item updated successfully",
-    item: updatedItem,
+    data: updatedItem,
     ...(imageLogs.length > 0 && { imageLogs }), // only include if any issues
   });
 });
@@ -280,7 +300,7 @@ const getShopItemById = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    item,
+    data: item,
   });
 });
 
@@ -320,7 +340,7 @@ const getRelatedShopItems = asyncHandler(async (req, res) => {
       ...new Set(
         groups
           .flatMap((g) => g.shopItems.map(String))
-          .filter((itemId) => itemId !== id)
+          .filter((itemId) => itemId !== id),
       ),
     ];
 
@@ -403,7 +423,7 @@ const getRelatedShopItems = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     total: populatedItems.length,
-    items: populatedItems,
+    data: populatedItems,
   });
 });
 

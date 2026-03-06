@@ -42,15 +42,8 @@ const paymentSchema = new mongoose.Schema(
     },
 
     provider: {
-      id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "PaymentProvider",
-        required: true,
-      },
-      name: {
-        type: String,
-        required: true,
-      },
+      type: String,
+      index: true,
     },
 
     reference: {

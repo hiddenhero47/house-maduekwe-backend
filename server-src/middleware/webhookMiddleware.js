@@ -12,7 +12,7 @@ const verifyWebhook = async (req, res, next) => {
       }
 
       const event = stripe.webhooks.constructEvent(
-        req.rawBody,
+        req.body,
         signature,
         process.env.STRIPE_WEBHOOK_SECRET,
       );

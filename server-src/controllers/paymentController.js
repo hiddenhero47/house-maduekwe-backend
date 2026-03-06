@@ -138,9 +138,11 @@ const getPayments = asyncHandler(async (req, res) => {
 });
 
 // @desc Strip webhook callback
-// @route POST /api/payments/stripe-callback
+// @route POST /api/payment/:provider/callback
 // @access Private
-const processStripeEvent = async (event) => {
+const processStripeEvent = async (req, res) => {
+  const { event } = req.webhook;
+  
   if (event.type !== "payment_intent.succeeded") return;
 
   const intentId = event.data.object.id;
@@ -170,10 +172,7 @@ const processStripeEvent = async (event) => {
         amountToPay: payment.amountToPay,
         currency: payment.currency,
         status: PAYMENT_STATUS.SUCCESS,
-        provider: {
-          name: intent.metadata.providerName,
-          id: intent.metadata.providerId,
-        },
+        provider: intent.metadata.providerName,
         reference: intent.id,
         transactionFee: (intent.amount_received - intent.amount) / 100,
       });
@@ -182,10 +181,7 @@ const processStripeEvent = async (event) => {
   }
 
   payment.status = PAYMENT_STATUS.SUCCESS;
-  payment.provider = {
-    name: intent.metadata.providerName,
-    id: intent.metadata.providerId,
-  };
+  payment.provider = intent.metadata.providerName;
   payment.reference = intent.id;
   payment.transactionFee = (intent.amount_received - intent.amount) / 100;
 

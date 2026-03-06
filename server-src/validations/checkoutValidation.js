@@ -26,7 +26,7 @@ const checkoutValidationSchema = yup.object({
     .matches(objectIdRegex, "Invalid payment provider id")
     .nullable()
     .notRequired()
-    .required("Payment method is required"),
+    .optional(),
 });
 
 module.exports = checkoutValidationSchema;

@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getMyOrders,
   getOrders,
+  getOrderById,
   updateOrderStatus,
 } = require("../controllers/orderController");
 const {
@@ -17,6 +18,7 @@ router.post("/confirm-checkout", protect, confirmCheckout);
 router.post("/checkout", protect, checkout);
 router.get("/me", protect, getMyOrders);
 router.get("/", secureRole(ROLE.ADMIN, ROLE.SUPER_ADMIN), getOrders);
+router.get("/:id", protect, getOrderById);
 router.patch(
   "/:id/status",
   secureRole(ROLE.ADMIN, ROLE.SUPER_ADMIN),

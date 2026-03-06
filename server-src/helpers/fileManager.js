@@ -68,13 +68,21 @@ async function saveBuffer(buffer, originalName, mime) {
  * 📤 Master upload handler
  */
 async function uploadHandler({ req, schema, allowedTypes }) {
-  // ✅ Validate request body with Yup if schema is provided
-  if (schema) {
-    await schema.validate(req, { abortEarly: false });
-  }
-
   const results = [];
   const errorLogs = [];
+
+  // ✅ Validate request body with Yup if schema is provided
+  if (schema) {
+    try {
+      await schema(req);
+    } catch (err) {
+      const message = err.inner
+        ? err.inner.map(e => e.message).join("; ")
+        : err.message;
+      errorLogs.push(`Upload validation warning (continued anyway): ${message}`);
+      return { results, errorLogs };
+    }
+  }
 
   // 🎯 Single file (multer -> req.file)
   if (req.file) {
@@ -185,6 +193,23 @@ async function deleteFile(filePath) {
  * ♻️ Replace an old file with a new one
  */
 async function updateFile({ oldFilePath, req, schema, allowedTypes }) {
+  const results = [];
+  const errorLogs = [];
+  // Early validation gate — only proceed if validation passes
+  if (schema) {
+    try {
+      await schema(req);  // your validateAvatar function
+    } catch (err) {
+      const message = err.inner
+        ? err.inner.map(e => e.message).join("; ")
+        : err.message;
+
+      errorLogs.push(`Validation failed: ${message}`);
+      // Do NOT delete old file
+      // Do NOT attempt upload
+      return { results, errorLogs };
+    }
+  }
   await deleteFile(oldFilePath);
   return await uploadHandler({ req, schema, allowedTypes });
 }

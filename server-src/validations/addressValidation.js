@@ -10,9 +10,10 @@ const addressValidationSchema = yup.object({
       /^[A-Z]{2}$/,
       "Country must be a valid 2-letter country code (e.g. NG, US)",
     ),
-  description: yup.string().required("Description is required"),
+  description: yup.string().optional(),
   coordinates: yup.mixed().optional(),
   fullAddress: yup.string().required("Full address is required"),
+  isDefault: yup.boolean().optional(),
 });
 
 module.exports = addressValidationSchema;
