@@ -22,6 +22,10 @@ const app = express();
 const publicPath = path.join(__dirname, "public");
 
 //middleware for body parser
+app.use(
+  "/api/payment/stripe/callback",
+  express.raw({ type: "application/json" })
+);
 const forms = multer();
 app.use(express.json({ limit: '3mb' }));
 app.use(forms.any());
