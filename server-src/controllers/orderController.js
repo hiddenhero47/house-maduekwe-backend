@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
 const { Order, ORDER_STATUS } = require("../models/orderModel");
 const { ROLE } = require("../models/userModel");
+const { Payment } = require("../models/paymentModel");
 
 const ORDER_STATUS_FLOW = {
   pending: ["processing", "cancelled"],
