@@ -10,6 +10,7 @@ const {
   normalizeData,
   parseClassTagsFilter,
   sanitizeAttributes,
+  mergeUnique,
 } = require("../helpers/shopItemHelper");
 const mongoose = require("mongoose");
 const ItemGroup = require("../models/itemGroupModel");

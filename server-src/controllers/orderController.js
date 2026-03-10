@@ -167,7 +167,7 @@ const getOrderById = asyncHandler(async (req, res) => {
 
   // Optional security: user can only access their own order
   if (
-    req.user.role !== ROLE.ADMIN &&
+    (req.user.role !== ROLE.ADMIN || req.user.role !== ROLE.SUPER_ADMIN)&&
     order.user._id.toString() !== req.user._id.toString()
   ) {
     res.status(403);
