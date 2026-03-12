@@ -12,7 +12,7 @@ const { ROLE } = require("../models/userModel");
 // List all & Create
 router
   .route("/")
-  .get(protect, getCategories)
+  .get(getCategories)
   .post(secureRole([ROLE.SUPER_ADMIN, ROLE.ADMIN]), createCategory);
 
 // Update & Delete by id

@@ -20,6 +20,7 @@ const ItemGroup = require("../models/itemGroupModel");
 // @access Public
 const getShopItems = asyncHandler(async (req, res) => {
   const {
+    search,
     category,
     subCategory,
     minPrice,
@@ -31,6 +32,14 @@ const getShopItems = asyncHandler(async (req, res) => {
   } = req.query;
 
   const query = {};
+
+  if (search) {
+    query.$or = [
+      { $text: { $search: search } },
+      { name: { $regex: `^${search}`, $options: "i" } },
+      { brand: { $regex: `^${search}`, $options: "i" } },
+    ];
+  }
 
   if (classTags) {
     const parsedClassTags = parseClassTagsFilter(classTags);
@@ -73,16 +82,24 @@ const getShopItems = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   // ✅ Fetch items with category + attribute population
+  const findQuery = ShopItem.find(
+    query,
+    search ? { score: { $meta: "textScore" } } : {},
+  )
+    .populate("category", "name")
+    .populate({
+      path: "attributes.Attribute",
+      select: "name value type display",
+    })
+    .skip(skip)
+    .limit(Number(limit));
+
+  if (search) {
+    findQuery.sort({ score: { $meta: "textScore" } });
+  }
+
   const [items, total] = await Promise.all([
-    ShopItem.find(query)
-      .populate("category", "name") // only bring back category name
-      .populate({
-        path: "attributes.Attribute",
-        select: "name value type display", // fields from Attribute model
-      })
-      .skip(skip)
-      .limit(Number(limit))
-      .lean(),
+    findQuery.lean(),
     ShopItem.countDocuments(query),
   ]);
 

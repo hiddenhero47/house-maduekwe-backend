@@ -104,12 +104,27 @@ const shopItemSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 shopItemSchema.index(
   { _id: 1, "attributes.Attribute": 1 },
-  { unique: true, sparse: true }
+  { unique: true, sparse: true },
+);
+
+shopItemSchema.index(
+  {
+    name: "text",
+    brand: "text",
+    classTags: "text",
+  },
+  {
+    weights: {
+      name: 10,
+      brand: 5,
+      classTags: 5,
+    },
+  },
 );
 
 shopItemSchema.pre("validate", function (next) {
@@ -117,7 +132,7 @@ shopItemSchema.pre("validate", function (next) {
 
   if (defaultCount > 1) {
     return next(
-      new Error("Only one attribute can be marked as default for this item.")
+      new Error("Only one attribute can be marked as default for this item."),
     );
   }
 
@@ -145,8 +160,8 @@ shopItemSchema.pre("findOneAndUpdate", function (next) {
     data.classTags = [
       ...new Set(
         data.classTags.map((tag) =>
-          typeof tag === "string" ? tag.toLowerCase().trim() : tag
-        )
+          typeof tag === "string" ? tag.toLowerCase().trim() : tag,
+        ),
       ),
     ];
   }
@@ -154,12 +169,12 @@ shopItemSchema.pre("findOneAndUpdate", function (next) {
   // ✅ Enforce single default attribute on update
   if (Array.isArray(data.attributes)) {
     const defaultCount = data.attributes.filter(
-      (attr) => attr.isDefault
+      (attr) => attr.isDefault,
     ).length;
 
     if (defaultCount > 1) {
       return next(
-        new Error("Only one attribute can be marked as default for this item.")
+        new Error("Only one attribute can be marked as default for this item."),
       );
     }
   }
