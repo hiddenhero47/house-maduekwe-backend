@@ -34,10 +34,16 @@ const getShopItems = asyncHandler(async (req, res) => {
   const query = {};
 
   if (search) {
-    query.$or = [
-      { $text: { $search: search } },
-      { name: { $regex: `^${search}`, $options: "i" } },
-      { brand: { $regex: `^${search}`, $options: "i" } },
+    query.$text = { $search: search };
+
+    query.$and = [
+      {
+        $or: [
+          { name: { $regex: `^${search}`, $options: "i" } },
+          { brand: { $regex: `^${search}`, $options: "i" } },
+          { classTags: { $regex: `^${search}`, $options: "i" } },
+        ],
+      },
     ];
   }
 
