@@ -6,9 +6,55 @@ const ShopItem = require("../models/shopItemModel");
 // @route   GET /api/item-groups
 // @access  Public or Private (depending on your app)
 const getItemGroups = asyncHandler(async (req, res) => {
-  const groups = await ItemGroup.find().populate("shopItems");
+  const { search, groupId, shopItemId, page = 1, limit = 10 } = req.query;
 
-  res.json(groups);
+  const query = {};
+
+  // 🔎 Search by group name
+  if (search) {
+    query.groupName = { $regex: search, $options: "i" };
+  }
+
+  // 🔎 Search by ItemGroup ID
+  if (groupId && mongoose.Types.ObjectId.isValid(groupId)) {
+    query._id = groupId;
+  }
+
+  // 🔎 Search by ShopItem ID inside group
+  if (shopItemId && mongoose.Types.ObjectId.isValid(shopItemId)) {
+    query.shopItems = shopItemId;
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [groups, total] = await Promise.all([
+    ItemGroup.find(query)
+      .populate({
+        path: "shopItems",
+        populate: [
+          { path: "category", select: "name" },
+          {
+            path: "attributes.Attribute",
+            select: "name value type display",
+          },
+        ],
+      })
+      .skip(skip)
+      .limit(Number(limit))
+      .sort({ createdAt: -1 }),
+
+    ItemGroup.countDocuments(query),
+  ]);
+
+  res.json({
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    data: groups,
+  });
 });
 
 // @desc    Create a new item group
