@@ -1,6 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const ItemGroup = require("../models/itemGroupModel");
-const ShopItem = require("../models/shopItemModel");
+const { ShopItem } = require("../models/shopItemModel");
 
 // @desc    Get all item groups
 // @route   GET /api/item-groups
