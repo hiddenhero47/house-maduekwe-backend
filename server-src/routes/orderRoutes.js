@@ -17,11 +17,11 @@ const router = express.Router();
 router.post("/confirm-checkout", protect, confirmCheckout);
 router.post("/checkout", protect, checkout);
 router.get("/me", protect, getMyOrders);
-router.get("/", secureRole(ROLE.ADMIN, ROLE.SUPER_ADMIN), getOrders);
+router.get("/", secureRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]), getOrders);
 router.get("/:id", protect, getOrderById);
 router.patch(
   "/:id/status",
-  secureRole(ROLE.ADMIN, ROLE.SUPER_ADMIN),
+  secureRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]),
   updateOrderStatus,
 );
 
