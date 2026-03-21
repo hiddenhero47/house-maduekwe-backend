@@ -6,7 +6,8 @@ const { Payment } = require("../models/paymentModel");
 
 const ORDER_STATUS_FLOW = {
   pending: ["processing", "cancelled"],
-  processing: ["shipped", "cancelled"],
+  processing: ["shipped", "cancelled", "paid"],
+  paid:["shipped", "processing"],
   shipped: ["delivered"],
   delivered: [],
   cancelled: [],
