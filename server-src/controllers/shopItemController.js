@@ -27,12 +27,15 @@ const getShopItems = asyncHandler(async (req, res) => {
     maxPrice,
     attributes,
     classTags,
+    endDate,
+    startDate,
     page = 1,
     limit = 12,
   } = req.query;
 
   const query = {};
 
+  // 🔎 Text search
   if (search) {
     query.$text = { $search: search };
 
@@ -47,6 +50,7 @@ const getShopItems = asyncHandler(async (req, res) => {
     ];
   }
 
+  // 🏷 classTags filter
   if (classTags) {
     const parsedClassTags = parseClassTagsFilter(classTags);
 
@@ -59,13 +63,18 @@ const getShopItems = asyncHandler(async (req, res) => {
     query.$and.push(parsedClassTags);
   }
 
+  // 🗂 Category filters
   if (category) query.category = category;
   if (subCategory) query.subCategory = subCategory;
+
+  // 💰 Price filters
   if (minPrice || maxPrice) {
     query.price = {};
     if (minPrice) query.price.$gte = Number(minPrice);
     if (maxPrice) query.price.$lte = Number(maxPrice);
   }
+
+  // 🎨 Attributes filter
   if (attributes) {
     // attributes param should be JSON string like: [{"name":"Color","value":"Red"}]
     try {
@@ -82,6 +91,29 @@ const getShopItems = asyncHandler(async (req, res) => {
       throw new Error(
         "Invalid attributes filter format — must be a valid JSON array",
       );
+    }
+  }
+
+  // 📅 Date filtering
+  if (startDate || endDate) {
+    query.createdAt = {};
+
+    if (startDate) {
+      const start = new Date(startDate);
+      if (!isNaN(start)) query.createdAt.$gte = start;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      if (!isNaN(end)) {
+        end.setHours(23, 59, 59, 999); // include full day
+        query.createdAt.$lte = end;
+      }
+    }
+
+    // cleanup if empty
+    if (Object.keys(query.createdAt).length === 0) {
+      delete query.createdAt;
     }
   }
 
