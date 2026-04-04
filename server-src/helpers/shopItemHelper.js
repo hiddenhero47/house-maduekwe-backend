@@ -146,9 +146,30 @@ const sanitizeAttributes = async (attributes = [], removeImages = []) => {
   return sanitized;
 };
 
+const mergeUnique = (existing, incoming, limit) => {
+  const map = new Map();
+
+  // add existing items first
+  for (const item of existing) {
+    map.set(String(item._id), item);
+  }
+
+  // add new items if not already present
+  for (const item of incoming) {
+    if (!map.has(String(item._id))) {
+      map.set(String(item._id), item);
+    }
+
+    if (map.size >= limit) break;
+  }
+
+  return Array.from(map.values()).slice(0, limit);
+};
+
 module.exports = {
   normalizeData,
   parseClassTagsFilter,
   sanitizeAttributes,
   parseMultipartData,
+  mergeUnique,
 };

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Cart = require("../models/cartModel");
+const { ShopItem, STATUS } = require("../models/shopItemModel");
 const { Address } = require("../models/addressModel");
 const { ExportFee } = require("../models/exportFeeModel");
 const asyncHandler = require("express-async-handler");
@@ -51,7 +52,56 @@ const checkout = asyncHandler(async (req, res) => {
 
     const summary = await buildCheckoutSummary(req);
 
+    // 🚨 FINAL STOCK ENFORCEMENT (inside transaction)
+    const stockIssues = summary.stock.filter((s) => !s.isAvailable);
+    if (stockIssues.length > 0) {
+      throw new Error(stockIssues.map((s) => s.message).join(", "));
+    }
+
     const { user, address, order, payment } = summary;
+
+    for (const item of summary.order.items) {
+      // 1️⃣ Decrement main item stock
+      const result = await ShopItem.updateOne(
+        {
+          _id: item.shopItem._id,
+          quantity: { $gte: item.quantity },
+        },
+        {
+          $inc: { quantity: -item.quantity },
+        },
+        { session },
+      );
+
+      if (result.modifiedCount === 0) {
+        throw new Error(`Stock changed for ${item.shopItem.name}`);
+      }
+
+      // 2️⃣ Decrement attribute stock
+      if (Array.isArray(item.selectedAttributes)) {
+        for (const selectedAttr of item.selectedAttributes) {
+          const attrId = selectedAttr._id;
+
+          const attrResult = await ShopItem.updateOne(
+            {
+              _id: item.shopItem._id,
+              "attributes._id": attrId,
+              "attributes.quantity": { $gte: item.quantity },
+            },
+            {
+              $inc: { "attributes.$.quantity": -item.quantity },
+            },
+            { session },
+          );
+
+          if (attrResult.modifiedCount === 0) {
+            throw new Error(
+              `Stock changed for attribute "${selectedAttr.name}" of ${item.shopItem.name}`,
+            );
+          }
+        }
+      }
+    }
 
     // 🧾 Create Order
     const createdOrder = await Order.create(
@@ -188,6 +238,38 @@ const getCheckoutData = async (req) => {
     address,
     paymentProvider,
     currency: currency,
+  };
+};
+
+const validateStock = (item) => {
+  const shopItem = item.shopItem;
+
+  let availableQty = shopItem.quantity;
+
+  // 🧠 build lookup map once
+  const attrMap = new Map(
+    (shopItem.attributes || []).map((a) => [a._id.toString(), a]),
+  );
+
+  if (Array.isArray(item.selectedAttributes)) {
+    for (const selectedAttr of item.selectedAttributes) {
+      const attr = attrMap.get(selectedAttr._id.toString());
+
+      if (attr && typeof attr.quantity === "number") {
+        availableQty = Math.min(availableQty, attr.quantity);
+      }
+    }
+  }
+
+  const isAvailable = item.quantity <= availableQty;
+
+  return {
+    isAvailable: shopItem.status !== STATUS.AVAILABLE ? false : isAvailable,
+    availableQty,
+    requestedQty: item.quantity,
+    message: isAvailable
+      ? null
+      : `Only ${availableQty} available for ${shopItem.name}`,
   };
 };
 
@@ -331,6 +413,7 @@ const buildCheckoutSummary = async (req) => {
 
   const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
 
+  const stock = items.map((item) => validateStock(item));
   // 📦 Order item snapshot (schema-compliant)
   const orderItems = items.map((item) => ({
     shopItem: {
@@ -343,6 +426,7 @@ const buildCheckoutSummary = async (req) => {
   return {
     user,
     address,
+    stock,
 
     order: {
       items: orderItems,

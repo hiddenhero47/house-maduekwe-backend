@@ -10,6 +10,7 @@ const {
   normalizeData,
   parseClassTagsFilter,
   sanitizeAttributes,
+  mergeUnique,
 } = require("../helpers/shopItemHelper");
 const mongoose = require("mongoose");
 const ItemGroup = require("../models/itemGroupModel");
@@ -19,18 +20,37 @@ const ItemGroup = require("../models/itemGroupModel");
 // @access Public
 const getShopItems = asyncHandler(async (req, res) => {
   const {
+    search,
     category,
     subCategory,
     minPrice,
     maxPrice,
     attributes,
     classTags,
+    endDate,
+    startDate,
     page = 1,
     limit = 12,
   } = req.query;
 
   const query = {};
 
+  // 🔎 Text search
+  if (search) {
+    query.$text = { $search: search };
+
+    query.$and = [
+      {
+        $or: [
+          { name: { $regex: `^${search}`, $options: "i" } },
+          { brand: { $regex: `^${search}`, $options: "i" } },
+          { classTags: { $regex: `^${search}`, $options: "i" } },
+        ],
+      },
+    ];
+  }
+
+  // 🏷 classTags filter
   if (classTags) {
     const parsedClassTags = parseClassTagsFilter(classTags);
 
@@ -43,13 +63,18 @@ const getShopItems = asyncHandler(async (req, res) => {
     query.$and.push(parsedClassTags);
   }
 
+  // 🗂 Category filters
   if (category) query.category = category;
   if (subCategory) query.subCategory = subCategory;
+
+  // 💰 Price filters
   if (minPrice || maxPrice) {
     query.price = {};
     if (minPrice) query.price.$gte = Number(minPrice);
     if (maxPrice) query.price.$lte = Number(maxPrice);
   }
+
+  // 🎨 Attributes filter
   if (attributes) {
     // attributes param should be JSON string like: [{"name":"Color","value":"Red"}]
     try {
@@ -69,19 +94,50 @@ const getShopItems = asyncHandler(async (req, res) => {
     }
   }
 
+  // 📅 Date filtering
+  if (startDate || endDate) {
+    query.createdAt = {};
+
+    if (startDate) {
+      const start = new Date(startDate);
+      if (!isNaN(start)) query.createdAt.$gte = start;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      if (!isNaN(end)) {
+        end.setHours(23, 59, 59, 999); // include full day
+        query.createdAt.$lte = end;
+      }
+    }
+
+    // cleanup if empty
+    if (Object.keys(query.createdAt).length === 0) {
+      delete query.createdAt;
+    }
+  }
+
   const skip = (page - 1) * limit;
 
   // ✅ Fetch items with category + attribute population
+  const findQuery = ShopItem.find(
+    query,
+    search ? { score: { $meta: "textScore" } } : {},
+  )
+    .populate("category", "name")
+    .populate({
+      path: "attributes.Attribute",
+      select: "name value type display",
+    })
+    .skip(skip)
+    .limit(Number(limit));
+
+  if (search) {
+    findQuery.sort({ score: { $meta: "textScore" } });
+  }
+
   const [items, total] = await Promise.all([
-    ShopItem.find(query)
-      .populate("category", "name") // only bring back category name
-      .populate({
-        path: "attributes.Attribute",
-        select: "name value type display", // fields from Attribute model
-      })
-      .skip(skip)
-      .limit(Number(limit))
-      .lean(),
+    findQuery.lean(),
     ShopItem.countDocuments(query),
   ]);
 

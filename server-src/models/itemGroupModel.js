@@ -18,4 +18,7 @@ const itemGroupSchema = new mongoose.Schema(
   }
 );
 
+itemGroupSchema.index({ groupName: 1 });
+itemGroupSchema.index({ shopItems: 1 });
+
 module.exports = mongoose.model("ItemGroup", itemGroupSchema);
