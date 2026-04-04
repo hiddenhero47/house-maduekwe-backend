@@ -32,6 +32,14 @@ const addressSchema = mongoose.Schema(
     coordinates: {
       type: mongoose.Schema.Types.Mixed,
     },
+    zipCode: {
+      type: String,
+      default: "",
+    },
+    stateLine: {
+      type: String,
+      default: "",
+    },
     isDefault: {
       type: Boolean,
       default: false,

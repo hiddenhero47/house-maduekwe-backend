@@ -7,7 +7,7 @@ const { Payment } = require("../models/paymentModel");
 const ORDER_STATUS_FLOW = {
   pending: ["processing", "cancelled"],
   processing: ["shipped", "cancelled", "paid"],
-  paid:["shipped", "processing"],
+  paid: ["shipped", "processing"],
   shipped: ["delivered"],
   delivered: [],
   cancelled: [],
@@ -157,9 +157,7 @@ const getOrderById = asyncHandler(async (req, res) => {
     throw new Error("Invalid order id");
   }
 
-  const order = await Order.findById(id)
-    .populate("user", "name email")
-    .lean();
+  const order = await Order.findById(id).populate("user", "name email").lean();
 
   if (!order) {
     res.status(404);
@@ -168,7 +166,8 @@ const getOrderById = asyncHandler(async (req, res) => {
 
   // Optional security: user can only access their own order
   if (
-    (req.user.role !== ROLE.ADMIN || req.user.role !== ROLE.SUPER_ADMIN)&&
+    req.user.role !== ROLE.ADMIN &&
+    req.user.role !== ROLE.SUPER_ADMIN &&
     order.user._id.toString() !== req.user._id.toString()
   ) {
     res.status(403);
@@ -191,7 +190,7 @@ const getOrderById = asyncHandler(async (req, res) => {
 // @route PATCH /api/orders/:id/status
 // @access Private (Admin)
 const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { status } = req.body;
+  const { status, shippingDetails } = req.body;
   const { id } = req.params;
 
   if (!Object.values(ORDER_STATUS).includes(status)) {
@@ -215,7 +214,32 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     );
   }
 
+  // 🚚 Enforce shipping details when moving to SHIPPED
+  if (status === ORDER_STATUS.SHIPPED) {
+    const { company, trackingNumber } = shippingDetails || {};
+
+    if (!company?.trim() || !trackingNumber?.trim()) {
+      throw new Error("Valid shipping company and tracking number required");
+    }
+
+    // ✅ attach shipping details
+    order.shippingDetails = {
+      company: company.trim(),
+      trackingNumber: trackingNumber.trim(),
+      shippedAt: new Date(),
+    };
+  }
+
+  // Optional: allow updating shipping details separately
+  if (shippingDetails && status !== ORDER_STATUS.SHIPPED) {
+    order.shippingDetails = {
+      ...(order.shippingDetails || {}),
+      ...shippingDetails,
+    };
+  }
+
   order.status = status;
+
   order.updatedBy = {
     id: req.user._id,
     email: req.user.email,
