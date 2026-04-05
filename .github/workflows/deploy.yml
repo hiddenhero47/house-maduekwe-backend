@@ -18,4 +18,4 @@ jobs:
             cd ${{ secrets.APP_DIR }}
             git pull origin main --rebase
             npm install --omit=dev
-            pm2 restart house-madueke-api --update-env
+            pm2 restart house-maduekwe-api --update-env
