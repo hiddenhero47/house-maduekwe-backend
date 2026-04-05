@@ -16,6 +16,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ${{ secrets.APP_DIR }}
-            git pull origin main --rebase
+            git fetch origin main
+            git reset --hard origin/main
             npm install --omit=dev
             pm2 restart house-maduekwe-api --update-env
