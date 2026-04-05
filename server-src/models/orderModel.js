@@ -103,22 +103,12 @@ const orderSchema = new mongoose.Schema(
     },
 
     shippingDetails: {
-      company: {
-        type: String,
-        trim: true,
-      },
-      trackingNumber: {
-        type: String,
-        trim: true,
-      },
-      shippedAt: {
-        type: Date,
-      },
+      type: Object,
+      default: null,
       validate: {
         validator: function (v) {
-          if (!v) return true; // allow empty
+          if (!v) return true; // allow null / undefined
 
-          // if object exists, enforce required fields
           return v.company && v.trackingNumber;
         },
         message: "Shipping details must include company and tracking number",
