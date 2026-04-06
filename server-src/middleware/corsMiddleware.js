@@ -3,6 +3,7 @@ const handleCors = (req, res, next) => {
     "http://localhost:3002",
     "http://localhost:4173",
     "https://house-maduekwe-frontend-puetmkoef-hiddenhero47s-projects.vercel.app",
+    "https://house-maduekwe-frontend-git-dev-hiddenhero47s-projects.vercel.app/",
   ]; // change to match your React port exactly
   const requestOrigin = req.headers.origin;
 
