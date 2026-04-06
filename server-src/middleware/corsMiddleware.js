@@ -1,5 +1,5 @@
 const handleCors = (req, res, next) => {
-  const allowedOrigin = 'http://localhost:3002'; // change to match your React port exactly
+  const allowedOrigin = ['http://localhost:3002', 'http://localhost:4173']; // change to match your React port exactly
   const requestOrigin = req.headers.origin;
 
   // Decide what to send (exact match for credentials mode, or * for no credentials)
