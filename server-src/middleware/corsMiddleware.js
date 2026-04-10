@@ -2,7 +2,7 @@ const handleCors = (req, res, next) => {
   const allowedOrigin = [
     "http://localhost:3002",
     "http://localhost:4173",
-    "https://housemaduekwe.com/",
+    "https://housemaduekwe.com",
   ]; // change to match your React port exactly
   const requestOrigin = req.headers.origin;
 
