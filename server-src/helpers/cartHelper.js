@@ -45,10 +45,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     }, {});
 
     const selectedMap = new Map(
-      (incomingItem.selectedAttributes || []).map((a) => [
-        a._id.toString(),
-        a,
-      ])
+      (incomingItem.selectedAttributes || []).map((a) => [a._id.toString(), a]),
     );
 
     const finalSelectedAttributes = [];
@@ -58,7 +55,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     if (grouped[attributeType.SIZE]?.length) {
       const selectedSize = grouped[attributeType.SIZE].find((attr) =>
-        selectedMap.has(attr._id.toString())
+        selectedMap.has(attr._id.toString()),
       );
 
       if (!selectedSize) {
@@ -73,16 +70,14 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     if (grouped[attributeType.COLOR]?.length) {
       let selectedColor = grouped[attributeType.COLOR].find((attr) =>
-        selectedMap.has(attr._id.toString())
+        selectedMap.has(attr._id.toString()),
       );
 
       if (!selectedColor) {
         if (grouped[attributeType.COLOR].length === 1) {
           selectedColor = grouped[attributeType.COLOR][0];
         } else {
-          throw new Error(
-            `Color selection is required for ${shopItem.name}`
-          );
+          throw new Error(`Color selection is required for ${shopItem.name}`);
         }
       }
 
@@ -111,29 +106,12 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
         continue;
 
       const selected = grouped[type].find((attr) =>
-        selectedMap.has(attr._id.toString())
+        selectedMap.has(attr._id.toString()),
       );
 
       if (selected) {
         finalSelectedAttributes.push(selected);
       }
-    }
-
-    // -------------------------
-    // ✅ STOCK VALIDATION
-    // -------------------------
-    let availableQty = shopItem.quantity;
-
-    for (const attr of finalSelectedAttributes) {
-      if (typeof attr.quantity === "number") {
-        availableQty = Math.min(availableQty, attr.quantity);
-      }
-    }
-
-    if (incomingItem.quantity > availableQty) {
-      throw new Error(
-        `Only ${availableQty} available for ${shopItem.name}`
-      );
     }
 
     // -------------------------

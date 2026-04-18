@@ -1,7 +1,7 @@
 const yup = require("yup");
 const { STATUS } = require("../models/shopItemModel");
 const Category = require("../models/categoryModel");
-const { Attribute } = require("../models/attributeModel");
+const { Attribute, attributeType } = require("../models/attributeModel");
 
 // ✅ Helper to validate and verify MongoDB ObjectId existence
 const objectIdExists = (Model, fieldName) =>
@@ -62,6 +62,10 @@ const shopItemValidationSchema = yup.object({
         Attribute: objectIdExists(Attribute, "Attribute").required(
           "Attribute is required",
         ),
+        type: yup
+          .string()
+          .oneOf(Object.values(attributeType), "Invalid attribute type")
+          .required("Attribute type is required"),
         isDefault: yup.boolean().default(false),
         quantity: yup.number().min(0).optional(),
         additionalAmount: yup.number().min(0).optional(),
@@ -90,12 +94,54 @@ const shopItemValidationSchema = yup.object({
       },
     )
     .test(
-      "single-default",
-      "Only one attribute can be marked as default",
+      "single-default-per-type",
+      "Each attribute type can only have one default",
       function (attributes) {
         if (!attributes) return true;
-        const defaultCount = attributes.filter((a) => a.isDefault).length;
-        return defaultCount <= 1;
+
+        // group by type
+        const typeMap = new Map();
+
+        for (const attr of attributes) {
+          if (!attr.isDefault) continue;
+
+          const type = attr.type || "unknown";
+
+          if (!typeMap.has(type)) {
+            typeMap.set(type, 0);
+          }
+
+          typeMap.set(type, typeMap.get(type) + 1);
+
+          if (typeMap.get(type) > 1) {
+            return this.createError({
+              message: `Only one default allowed per type (${type})`,
+            });
+          }
+        }
+
+        return true;
+      },
+    )
+    .test(
+      "attributes-total-qty",
+      "Sum of attribute quantities cannot exceed product quantity",
+      function (attributes) {
+        const { parent } = this;
+
+        if (!attributes || !parent?.quantity) return true;
+
+        const totalAttrQty = attributes.reduce((sum, attr) => {
+          return sum + (attr.quantity || 0);
+        }, 0);
+
+        if (totalAttrQty > parent.quantity) {
+          return this.createError({
+            message: `Attributes total quantity (${totalAttrQty}) exceeds product stock (${parent.quantity})`,
+          });
+        }
+
+        return true;
       },
     )
     .optional(),
@@ -114,6 +160,121 @@ const shopItemValidationSchema = yup.object({
       "unique-tags",
       "Duplicate tags are not allowed",
       (tags) => !tags || tags.length === new Set(tags).size,
+    )
+    .optional(),
+
+  groupedVariants: yup
+    .array()
+    .of(
+      yup
+        .object({
+          primaryAttribute: yup
+            .string()
+            .matches(/^[0-9a-fA-F]{24}$/, "Invalid primaryAttribute format")
+            .required("primaryAttribute is required"),
+
+          options: yup
+            .array()
+            .of(
+              yup.object({
+                attribute: yup
+                  .string()
+                  .matches(/^[0-9a-fA-F]{24}$/, "Invalid attribute format")
+                  .required("Option attribute is required"),
+                quantity: yup
+                  .number()
+                  .required("Quantity is required for each variant option")
+                  .min(0, "Quantity cannot be negative"),
+              }),
+            )
+            .min(1, "Each groupedVariant must have at least one option")
+            .test(
+              "unique-options",
+              "Duplicate attributes in groupedVariants options",
+              function (options) {
+                if (!options) return true;
+
+                const ids = options.map((o) => o.attribute);
+                return ids.length === new Set(ids).size;
+              },
+            ),
+        })
+        .test(
+          "no-self-reference",
+          "Primary attribute cannot be inside its own options",
+          function (group) {
+            if (!group) return true;
+
+            const primary = group.primaryAttribute;
+            const optionIds = group.options?.map((o) => o.attribute) || [];
+
+            return !optionIds.includes(primary);
+          },
+        ),
+    )
+    .test(
+      "unique-primary",
+      "Duplicate primaryAttribute in groupedVariants",
+      function (groups) {
+        if (!groups) return true;
+
+        const ids = groups.map((g) => g.primaryAttribute);
+        return ids.length === new Set(ids).size;
+      },
+    )
+    .test(
+      "same-type",
+      "All groupedVariants must share same attribute type",
+      function (groups) {
+        const { attributes } = this.parent;
+
+        if (!groups || !attributes) return true;
+
+        const attrMap = new Map(attributes.map((a) => [a._id?.toString(), a]));
+
+        const first = attrMap.get(groups[0]?.primaryAttribute);
+
+        if (!first) return true;
+
+        const type = first.type;
+
+        return groups.every((g) => {
+          const attr = attrMap.get(g.primaryAttribute);
+          return attr && attr.type === type;
+        });
+      },
+    )
+    .test(
+      "variant-total-match",
+      "Sum of variant options must not exceed primary quantity",
+      function (groups) {
+        const { attributes } = this.parent;
+
+        if (!groups || !attributes) return true;
+
+        const attrMap = new Map(attributes.map((a) => [a._id?.toString(), a]));
+
+        for (const group of groups) {
+          const primary = attrMap.get(group.primaryAttribute?.toString());
+
+          if (!primary) return false;
+
+          const primaryQty = primary.quantity || 0;
+
+          const totalOptionsQty = (group.options || []).reduce(
+            (sum, opt) => sum + (opt.quantity || 0),
+            0,
+          );
+
+          if (totalOptionsQty > primaryQty) {
+            return this.createError({
+              message: `Grouped variant "${group.primaryAttribute}" exceeds primary stock (${totalOptionsQty} > ${primaryQty})`,
+            });
+          }
+        }
+
+        return true;
+      },
     )
     .optional(),
 });
