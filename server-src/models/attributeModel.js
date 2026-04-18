@@ -46,8 +46,32 @@ const attributeSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+attributeSchema.pre("findOneAndUpdate", function (next) {
+  const update = this.getUpdate();
+
+  if (!update) return next();
+
+  const data =
+    update.$set && typeof update.$set === "object" ? update.$set : update;
+
+  // ❌ Block type modification
+  if (data.type) {
+    return next(new Error("Attribute type cannot be changed after creation"));
+  }
+
+  next();
+});
+
+attributeSchema.pre("save", function (next) {
+  if (!this.isNew && this.isModified("type")) {
+    return next(new Error("Attribute type cannot be changed after creation"));
+  }
+
+  next();
+});
 
 const Attribute = mongoose.model("Attribute", attributeSchema);
 

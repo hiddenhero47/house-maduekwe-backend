@@ -93,7 +93,7 @@ const updateAttribute = asyncHandler(async (req, res) => {
 
   attribute.name = req.body.name || attribute.name;
   attribute.value = req.body.value || attribute.value;
-  attribute.type = req.body.type || attribute.type;
+  attribute.type = attribute.type;
   attribute.display = req.body.display || attribute.display;
 
   const updated = await attribute.save();
