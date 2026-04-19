@@ -53,14 +53,25 @@ const checkout = asyncHandler(async (req, res) => {
     const summary = await buildCheckoutSummary(req);
 
     // 🚨 FINAL STOCK ENFORCEMENT (inside transaction)
-    const stockIssues = summary.stock.filter((s) => !s.isAvailable);
+    const stockIssues = summary.stock
+      .map((s, index) => ({ ...s, index }))
+      .filter((s) => !s.isAvailable);
+
     if (stockIssues.length > 0) {
-      throw new Error(stockIssues.map((s) => s.message).join(", "));
+      const error = new Error("Stock validation failed");
+      error.type = "STOCK_ERROR";
+      error.details = stockIssues;
+      throw error;
     }
 
     const { user, address, order, payment } = summary;
 
     for (const item of summary.order.items) {
+      const groupedResult = validateGroupedVariants(item);
+
+      const primaryId = groupedResult?.primaryId;
+      const optionId = groupedResult?.optionId;
+
       // 1️⃣ Decrement main item stock
       const result = await ShopItem.updateOne(
         {
@@ -74,31 +85,72 @@ const checkout = asyncHandler(async (req, res) => {
       );
 
       if (result.modifiedCount === 0) {
-        throw new Error(`Stock changed for ${item.shopItem.name}`);
+        throw new Error(
+          `Stock mismatch during checkout for ${item.shopItem.name}. Please refresh and try again.`,
+        );
       }
 
-      // 2️⃣ Decrement attribute stock
-      if (Array.isArray(item.selectedAttributes)) {
-        for (const selectedAttr of item.selectedAttributes) {
-          const attrId = selectedAttr._id;
+      // 2️⃣ Decrement attribute stock (ONLY if no groupedVariants)
+      if (!primaryId && Array.isArray(item.selectedAttributes)) {
+        const attrIds = item.selectedAttributes.map((a) => a._id);
 
-          const attrResult = await ShopItem.updateOne(
-            {
-              _id: item.shopItem._id,
-              "attributes._id": attrId,
-              "attributes.quantity": { $gte: item.quantity },
+        const attrResult = await ShopItem.updateOne(
+          {
+            _id: item.shopItem._id,
+          },
+          {
+            $inc: {
+              "attributes.$[attr].quantity": -item.quantity,
             },
-            {
-              $inc: { "attributes.$.quantity": -item.quantity },
-            },
-            { session },
+          },
+          {
+            arrayFilters: [
+              {
+                "attr._id": { $in: attrIds },
+                "attr.quantity": { $gte: item.quantity },
+              },
+            ],
+            session,
+          },
+        );
+
+        if (attrResult.modifiedCount === 0) {
+          throw new Error(
+            `Stock mismatch during checkout for ${item.shopItem.name}. Please refresh and try again.`,
           );
+        }
+      }
 
-          if (attrResult.modifiedCount === 0) {
-            throw new Error(
-              `Stock changed for attribute "${selectedAttr.name}" of ${item.shopItem.name}`,
-            );
-          }
+      // 3️⃣ Decrement groupedVariants stock (MAIN LOGIC)
+      if (primaryId && optionId) {
+        const gvResult = await ShopItem.updateOne(
+          {
+            _id: item.shopItem._id,
+          },
+          {
+            $inc: {
+              "groupedVariants.$[group].options.$[opt].quantity":
+                -item.quantity,
+            },
+          },
+          {
+            arrayFilters: [
+              {
+                "group.primaryAttribute": primaryId,
+              },
+              {
+                "opt.attribute": optionId,
+                "opt.quantity": { $gte: item.quantity },
+              },
+            ],
+            session,
+          },
+        );
+
+        if (gvResult.modifiedCount === 0) {
+          throw new Error(
+            `Stock mismatch during checkout for ${item.shopItem.name}. Please refresh and try again.`,
+          );
         }
       }
     }
@@ -241,36 +293,169 @@ const getCheckoutData = async (req) => {
   };
 };
 
-const validateStock = (item) => {
+const getAvailable = (map, key, fallback) => {
+  if (!map.has(key)) {
+    map.set(key, fallback);
+  }
+  return map.get(key);
+};
+
+const validateGroupedVariants = (item) => {
   const shopItem = item.shopItem;
 
-  let availableQty = shopItem.quantity;
+  if (!shopItem.groupedVariants?.length) return null;
 
-  // 🧠 build lookup map once
-  const attrMap = new Map(
-    (shopItem.attributes || []).map((a) => [a._id.toString(), a]),
+  if (!Array.isArray(item.selectedAttributes)) return null;
+
+  const selectedIds = item.selectedAttributes.map((a) => a._id.toString());
+
+  const primarySet = new Set(
+    shopItem.groupedVariants.map((g) => g.primaryAttribute.toString()),
   );
 
-  if (Array.isArray(item.selectedAttributes)) {
-    for (const selectedAttr of item.selectedAttributes) {
-      const attr = attrMap.get(selectedAttr._id.toString());
+  // ✅ find selected primary
+  const primary = selectedIds.find((id) => primarySet.has(id));
 
-      if (attr && typeof attr.quantity === "number") {
-        availableQty = Math.min(availableQty, attr.quantity);
-      }
-    }
+  // ❌ no primary → not a grouped variant case
+  if (!primary) return null;
+
+  const group = shopItem.groupedVariants.find(
+    (g) => g.primaryAttribute.toString() === primary,
+  );
+
+  if (!group) return null;
+
+  // ✅ check if there is at least one valid option selected
+  const option = group.options.find((opt) =>
+    selectedIds.includes(opt.attribute.toString()),
+  );
+
+  // ❌ only primary selected (e.g. just "Red")
+  if (!option) {
+    return {
+      isAvailable: false,
+      message: "Incomplete variant selection",
+    };
   }
 
-  const isAvailable = item.quantity <= availableQty;
-
+  // ✅ full valid combination → now enforce stock
   return {
-    isAvailable: shopItem.status !== STATUS.AVAILABLE ? false : isAvailable,
-    availableQty,
+    isAvailable: item.quantity <= option.quantity,
+    availableQty: option.quantity,
     requestedQty: item.quantity,
-    message: isAvailable
-      ? null
-      : `Only ${availableQty} available for ${shopItem.name}`,
+    primaryId: group.primaryAttribute.toString(),
+    optionId: option.attribute.toString(),
+    message:
+      item.quantity <= option.quantity
+        ? null
+        : `Only ${option.quantity} available for selected variant`,
   };
+};
+
+const validateStockStateful = (items) => {
+  const memory = {
+    product: new Map(),
+    attributes: new Map(),
+    variants: new Map(),
+  };
+
+  const results = [];
+
+  for (const item of items) {
+    const shopItem = item.shopItem;
+    const id = shopItem._id.toString();
+
+    // ✅ STATUS CHECK FIRST
+    if (shopItem.status !== STATUS.AVAILABLE) {
+      results.push({
+        isAvailable: false,
+        message: `${shopItem.name} is not available`,
+      });
+      continue;
+    }
+
+    let availableQty = getAvailable(memory.product, id, shopItem.quantity);
+
+    // 🧠 ATTRIBUTE handling
+    if (Array.isArray(item.selectedAttributes)) {
+      for (const attrId of item.selectedAttributes) {
+        const key = attrId.toString();
+
+        const attr = shopItem.attributes?.find((a) => a._id.toString() === key);
+
+        if (attr?.quantity != null) {
+          const attrQty = getAvailable(memory.attributes, key, attr.quantity);
+
+          availableQty = Math.min(availableQty, attrQty);
+        }
+      }
+    }
+
+    // 🧠 GROUPED VARIANTS
+    const grouped = validateGroupedVariants(item);
+
+    if (grouped && grouped.isAvailable === false) {
+      results.push({
+        isAvailable: false,
+        message: grouped.message,
+      });
+      continue;
+    }
+
+    let variantKey = null;
+
+    if (grouped?.primaryId && grouped?.optionId) {
+      variantKey = `${id}:${grouped.primaryId}:${grouped.optionId}`;
+
+      const variantQty = getAvailable(
+        memory.variants,
+        variantKey,
+        grouped.availableQty,
+      );
+
+      availableQty = Math.min(availableQty, variantQty);
+    }
+
+    const isAvailable = item.quantity <= availableQty;
+
+    if (!isAvailable) {
+      results.push({
+        isAvailable: false,
+        message: `Only ${availableQty} left for ${shopItem.name}`,
+      });
+      continue;
+    }
+
+    // ✅ DECREMENT MEMORY
+
+    memory.product.set(id, availableQty - item.quantity);
+
+    if (Array.isArray(item.selectedAttributes)) {
+      for (const attrId of item.selectedAttributes) {
+        const key = attrId.toString();
+
+        const attr = shopItem.attributes?.find((a) => a._id.toString() === key);
+
+        if (attr?.quantity != null) {
+          const current = getAvailable(memory.attributes, key, attr.quantity);
+
+          memory.attributes.set(key, current - item.quantity);
+        }
+      }
+    }
+
+    if (variantKey) {
+      const current = memory.variants.get(variantKey);
+      memory.variants.set(variantKey, current - item.quantity);
+    }
+
+    results.push({
+      isAvailable: true,
+      message: null,
+    });
+  }
+
+  return results;
 };
 
 const roundMoney = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -366,35 +551,6 @@ const resolveShippingFee = async ({ country, state }) => {
   };
 };
 
-// const calculateTransactionFee = (paymentProvider, amount) => {
-//   if (!paymentProvider) {
-//     throw new Error("Payment provider is required");
-//   }
-
-//   if (typeof amount !== "number" || amount < 0) {
-//     throw new Error("Invalid transaction amount");
-//   }
-
-//   const percentageFee = paymentProvider.percentageFee || 0;
-//   const flatFee = paymentProvider.flatFee || 0;
-
-//   // % fee
-//   const percentageAmount = roundMoney((amount * percentageFee) / 100);
-
-//   // total transaction fee
-//   const transactionFee = roundMoney(percentageAmount + flatFee);
-
-//   return {
-//     transactionFee,
-//     breakdown: {
-//       percentageFee,
-//       percentageAmount,
-//       flatFee,
-//       total: transactionFee,
-//     },
-//   };
-// };
-
 const buildCheckoutSummary = async (req) => {
   const { user, items, address, currency } = await getCheckoutData(req);
 
@@ -413,7 +569,7 @@ const buildCheckoutSummary = async (req) => {
 
   const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
 
-  const stock = items.map((item) => validateStock(item));
+  const stock = validateStockStateful(items);
   // 📦 Order item snapshot (schema-compliant)
   const orderItems = items.map((item) => ({
     shopItem: {
@@ -446,4 +602,6 @@ const buildCheckoutSummary = async (req) => {
 module.exports = {
   confirmCheckout,
   checkout,
+  validateGroupedVariants,
+  validateStockStateful,
 };

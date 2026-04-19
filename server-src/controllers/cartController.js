@@ -6,6 +6,7 @@ const {
   hasChanged,
   buildValidatedCartItems,
 } = require("../helpers/cartHelper");
+const { validateStockStateful } = require("./checkoutController");
 
 // @desc    Get user cart
 // @route   GET /api/cart
@@ -114,6 +115,22 @@ const addToCart = asyncHandler(async (req, res) => {
   }
 
   const validatedItems = buildValidatedCartItems(itemList, shopItemMap);
+
+  const stockResults = validateStockStateful(
+    validatedItems.map((item) => ({
+      shopItem: shopItemMap.get(item.shopItem.toString()),
+      quantity: item.quantity,
+      selectedAttributes: item.selectedAttributes,
+    })),
+  );
+
+  // 🚨 BLOCK CART ADD IF ANY ITEM IS INVALID
+  const failed = stockResults.find((r) => r.isAvailable === false);
+
+  if (failed) {
+    res.status(400);
+    throw new Error(failed.message);
+  }
 
   // ✅ Find cart
   let cart = await Cart.findOne({ user: req.user._id });

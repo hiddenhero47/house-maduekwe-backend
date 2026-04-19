@@ -94,54 +94,24 @@ const sanitizeAttributes = async (attributes = [], removeImages = []) => {
     });
   }
 
-  // ============================================
-  // 2️⃣ ENFORCE SINGLE DEFAULT PER TYPE
-  // ============================================
-
-  // Skip if no attribute has isDefault true
-  if (!sanitized.some((attr) => attr.isDefault)) {
-    return sanitized;
-  }
-
-  // Collect unique attribute ids
   const attributeIds = [
-    ...new Set(sanitized.map((a) => a.Attribute.toString())),
+    ...new Set(attributes.map((a) => a.Attribute?.toString()).filter(Boolean)),
   ];
 
-  // Fetch types
   const attributeDocs = await Attribute.find({
     _id: { $in: attributeIds },
   })
     .select("_id type")
     .lean();
 
-  const typeMap = {};
-  attributeDocs.forEach((doc) => {
-    typeMap[doc._id.toString()] = doc.type;
-  });
+  const typeMap = new Map(
+    attributeDocs.map((doc) => [doc._id.toString(), doc.type]),
+  );
 
-  // Group by type
-  const grouped = {};
-
-  sanitized.forEach((attr) => {
-    const type = typeMap[attr.Attribute.toString()];
-    if (!type) return;
-
-    if (!grouped[type]) grouped[type] = [];
-    grouped[type].push(attr);
-  });
-
-  // Enforce rule
-  Object.values(grouped).forEach((group) => {
-    const defaults = group.filter((a) => a.isDefault);
-
-    if (defaults.length > 1) {
-      // Turn ALL off if conflict
-      group.forEach((a) => {
-        a.isDefault = false;
-      });
-    }
-  });
+  sanitized = sanitized.map((attr) => ({
+    ...attr,
+    type: typeMap.get(attr.Attribute.toString()),
+  }));
 
   return sanitized;
 };

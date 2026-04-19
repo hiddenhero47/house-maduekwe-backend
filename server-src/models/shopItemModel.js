@@ -13,6 +13,11 @@ const attributeSchema = new mongoose.Schema({
     ref: "Attribute",
     required: [true, "Attribute Ref is needed for this item"],
   },
+  type: {
+    type: String,
+    required: true,
+    enum: Object.values(attributeType),
+  },
   isDefault: {
     type: Boolean,
     default: false,
@@ -26,6 +31,28 @@ const attributeSchema = new mongoose.Schema({
   images: {
     type: Array, // optional
   },
+});
+
+const groupedVariantSchema = new mongoose.Schema({
+  primaryAttribute: {
+    type: mongoose.Schema.Types.ObjectId, // attributes._id (e.g. Red)
+    required: true,
+  },
+
+  options: [
+    {
+      attribute: {
+        type: mongoose.Schema.Types.ObjectId, // attributes._id (e.g. M)
+        required: true,
+      },
+
+      quantity: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+    },
+  ],
 });
 
 const shopItemSchema = mongoose.Schema(
@@ -81,6 +108,10 @@ const shopItemSchema = mongoose.Schema(
       type: [attributeSchema], // array of objects
       default: [],
     },
+    groupedVariants: {
+      type: [groupedVariantSchema],
+      default: [],
+    },
     discount: {
       type: Number,
       default: 0,
@@ -128,12 +159,88 @@ shopItemSchema.index(
 );
 
 shopItemSchema.pre("validate", function (next) {
-  const defaultCount = this.attributes.filter((attr) => attr.isDefault).length;
+  const typeMap = new Map();
 
-  if (defaultCount > 1) {
-    return next(
-      new Error("Only one attribute can be marked as default for this item."),
+  for (const attr of this.attributes) {
+    if (!attr.isDefault) continue;
+
+    const type = attr.type;
+
+    typeMap.set(type, (typeMap.get(type) || 0) + 1);
+
+    if (typeMap.get(type) > 1) {
+      return next(new Error(`Only one default allowed per type (${type})`));
+    }
+  }
+
+  // ✅ Validate groupedVariants references
+  const attributeIds = this.attributes.map((a) => a._id.toString());
+
+  for (const group of this.groupedVariants) {
+    // Check primaryAttribute exists
+    if (!attributeIds.includes(group.primaryAttribute.toString())) {
+      return next(
+        new Error("GroupedVariant primaryAttribute is not in attributes list"),
+      );
+    }
+
+    // Prevent duplicate options within group
+    const seen = new Set();
+
+    for (const opt of group.options) {
+      const optId = opt.attribute.toString();
+
+      if (!attributeIds.includes(optId)) {
+        return next(
+          new Error(
+            "GroupedVariant option attribute is not in attributes list",
+          ),
+        );
+      }
+
+      if (seen.has(optId)) {
+        return next(
+          new Error("Duplicate attribute in groupedVariants options"),
+        );
+      }
+
+      seen.add(optId);
+    }
+  }
+
+  if (this.groupedVariants.length > 0) {
+    const attributesMap = new Map(
+      this.attributes.map((a) => [a._id.toString(), a]),
     );
+
+    const firstPrimary = attributesMap.get(
+      this.groupedVariants[0]?.primaryAttribute.toString(),
+    );
+
+    const primaryType = firstPrimary?.type;
+
+    for (const group of this.groupedVariants) {
+      const attr = attributesMap.get(group.primaryAttribute.toString());
+
+      if (!attr) continue;
+
+      if (attr.type !== primaryType) {
+        return next(
+          new Error("All groupedVariants must share same attribute type"),
+        );
+      }
+
+      if (
+        group.options.some(
+          (opt) =>
+            opt.attribute.toString() === group.primaryAttribute.toString(),
+        )
+      ) {
+        return next(
+          new Error("Primary attribute cannot be inside its own options"),
+        );
+      }
+    }
   }
 
   next();
@@ -168,14 +275,18 @@ shopItemSchema.pre("findOneAndUpdate", function (next) {
 
   // ✅ Enforce single default attribute on update
   if (Array.isArray(data.attributes)) {
-    const defaultCount = data.attributes.filter(
-      (attr) => attr.isDefault,
-    ).length;
+    const typeMap = new Map();
 
-    if (defaultCount > 1) {
-      return next(
-        new Error("Only one attribute can be marked as default for this item."),
-      );
+    for (const attr of data.attributes) {
+      if (!attr.isDefault) continue;
+
+      const type = attr.type;
+
+      typeMap.set(type, (typeMap.get(type) || 0) + 1);
+
+      if (typeMap.get(type) > 1) {
+        return next(new Error(`Only one default allowed per type (${type})`));
+      }
     }
   }
 
