@@ -28,7 +28,9 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     const shopItem = shopItemMap.get(incomingItem.shopItem.toString());
 
     if (!shopItem) {
-      throw new Error("Shop item not found");
+      const error = new Error("Shop item not found");
+      error.statusCode = 400;
+      throw error;
     }
 
     const attributes = shopItem.attributes || [];
@@ -67,7 +69,11 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
       );
 
       if (!selectedSize) {
-        throw new Error(`Size selection is required for ${shopItem.name}`);
+        const error = new Error(
+          `Size selection is required for ${shopItem.name}`,
+        );
+        error.statusCode = 400;
+        throw error;
       }
 
       finalSelectedAttributes.push({
@@ -88,7 +94,11 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
         if (grouped[attributeType.COLOR].length === 1) {
           selectedColor = grouped[attributeType.COLOR][0];
         } else {
-          throw new Error(`Color selection is required for ${shopItem.name}`);
+          const error = new Error(
+            `Color selection is required for ${shopItem.name}`,
+          );
+          error.statusCode = 400;
+          throw error;
         }
       }
 
