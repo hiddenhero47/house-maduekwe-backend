@@ -72,7 +72,9 @@ const checkout = asyncHandler(async (req, res) => {
       const primaryId = groupedResult?.primaryId;
       const optionId = groupedResult?.optionId;
 
-      // 1️⃣ Decrement main item stock
+      // -----------------------------
+      // 1️⃣ MAIN PRODUCT STOCK
+      // -----------------------------
       const result = await ShopItem.updateOne(
         {
           _id: item.shopItem._id,
@@ -90,14 +92,14 @@ const checkout = asyncHandler(async (req, res) => {
         );
       }
 
-      // 2️⃣ Decrement attribute stock (ONLY if no groupedVariants)
+      // -----------------------------
+      // 2️⃣ ATTRIBUTE STOCK (NON-GROUPED ONLY)
+      // -----------------------------
       if (!primaryId && Array.isArray(item.selectedAttributes)) {
-        const attrIds = item.selectedAttributes.map((a) => a._id);
+        const attrIds = item.selectedAttributes.map(getAttrKey).filter(Boolean);
 
         const attrResult = await ShopItem.updateOne(
-          {
-            _id: item.shopItem._id,
-          },
+          { _id: item.shopItem._id },
           {
             $inc: {
               "attributes.$[attr].quantity": -item.quantity,
@@ -106,7 +108,7 @@ const checkout = asyncHandler(async (req, res) => {
           {
             arrayFilters: [
               {
-                "attr._id": { $in: attrIds },
+                "attr.Attribute": { $in: attrIds },
                 "attr.quantity": { $gte: item.quantity },
               },
             ],
@@ -121,12 +123,12 @@ const checkout = asyncHandler(async (req, res) => {
         }
       }
 
-      // 3️⃣ Decrement groupedVariants stock (MAIN LOGIC)
+      // -----------------------------
+      // 3️⃣ GROUPED VARIANTS STOCK (MAIN LOGIC)
+      // -----------------------------
       if (primaryId && optionId) {
         const gvResult = await ShopItem.updateOne(
-          {
-            _id: item.shopItem._id,
-          },
+          { _id: item.shopItem._id },
           {
             $inc: {
               "groupedVariants.$[group].options.$[opt].quantity":
@@ -221,6 +223,14 @@ const checkout = asyncHandler(async (req, res) => {
   }
 });
 
+const getAttrKey = (a) => {
+  if (!a?.Attribute) return null;
+
+  return typeof a.Attribute === "object"
+    ? a.Attribute._id?.toString()
+    : a.Attribute?.toString();
+};
+
 // Checkout Functions
 const getCheckoutData = async (req) => {
   const { itemList, selectedAddress } = req.body;
@@ -303,34 +313,28 @@ const getAvailable = (map, key, fallback) => {
 const validateGroupedVariants = (item) => {
   const shopItem = item.shopItem;
 
-  if (!shopItem.groupedVariants?.length) return null;
-
+  if (!shopItem?.groupedVariants?.length) return null;
   if (!Array.isArray(item.selectedAttributes)) return null;
 
-  const selectedIds = item.selectedAttributes.map((a) => a._id.toString());
+  const selectedIds = item.selectedAttributes.map(getAttrKey).filter(Boolean);
 
   const primarySet = new Set(
-    shopItem.groupedVariants.map((g) => g.primaryAttribute.toString()),
+    shopItem.groupedVariants.map((g) => g.primaryAttribute?.toString()),
   );
 
-  // ✅ find selected primary
   const primary = selectedIds.find((id) => primarySet.has(id));
-
-  // ❌ no primary → not a grouped variant case
   if (!primary) return null;
 
   const group = shopItem.groupedVariants.find(
-    (g) => g.primaryAttribute.toString() === primary,
+    (g) => g.primaryAttribute?.toString() === primary,
   );
 
   if (!group) return null;
 
-  // ✅ check if there is at least one valid option selected
   const option = group.options.find((opt) =>
-    selectedIds.includes(opt.attribute.toString()),
+    selectedIds.includes(opt.attribute?.toString()),
   );
 
-  // ❌ only primary selected (e.g. just "Red")
   if (!option) {
     return {
       isAvailable: false,
@@ -338,7 +342,6 @@ const validateGroupedVariants = (item) => {
     };
   }
 
-  // ✅ full valid combination → now enforce stock
   return {
     isAvailable: item.quantity <= option.quantity,
     availableQty: option.quantity,
@@ -363,9 +366,17 @@ const validateStockStateful = (items) => {
 
   for (const item of items) {
     const shopItem = item.shopItem;
-    const id = shopItem._id.toString();
+    const id = shopItem?._id?.toString();
 
-    // ✅ STATUS CHECK FIRST
+    if (!id) {
+      results.push({
+        isAvailable: false,
+        message: "Invalid shop item",
+      });
+      continue;
+    }
+
+    // STATUS CHECK
     if (shopItem.status !== STATUS.AVAILABLE) {
       results.push({
         isAvailable: false,
@@ -374,24 +385,11 @@ const validateStockStateful = (items) => {
       continue;
     }
 
-    let availableQty = getAvailable(memory.product, id, shopItem.quantity);
+    let availableQty = memory.product.get(id) ?? shopItem.quantity;
 
-    // 🧠 ATTRIBUTE handling
-    if (Array.isArray(item.selectedAttributes)) {
-      for (const attrId of item.selectedAttributes) {
-        const key = attrId.toString();
-
-        const attr = shopItem.attributes?.find((a) => a._id.toString() === key);
-
-        if (attr?.quantity != null) {
-          const attrQty = getAvailable(memory.attributes, key, attr.quantity);
-
-          availableQty = Math.min(availableQty, attrQty);
-        }
-      }
-    }
-
-    // 🧠 GROUPED VARIANTS
+    // -----------------------------
+    // GROUPED VARIANTS FIRST
+    // -----------------------------
     const grouped = validateGroupedVariants(item);
 
     if (grouped && grouped.isAvailable === false) {
@@ -404,21 +402,42 @@ const validateStockStateful = (items) => {
 
     let variantKey = null;
 
-    if (grouped?.primaryId && grouped?.optionId) {
+    if (
+      grouped?.primaryId &&
+      grouped?.optionId &&
+      grouped?.availableQty != null
+    ) {
       variantKey = `${id}:${grouped.primaryId}:${grouped.optionId}`;
 
-      const variantQty = getAvailable(
-        memory.variants,
-        variantKey,
-        grouped.availableQty,
-      );
+      const current = memory.variants.get(variantKey) ?? grouped.availableQty;
 
-      availableQty = Math.min(availableQty, variantQty);
+      availableQty = Math.min(availableQty, current);
     }
 
-    const isAvailable = item.quantity <= availableQty;
+    // -----------------------------
+    // ATTRIBUTE STOCK (ONLY IF NO VARIANT)
+    // -----------------------------
+    if (!grouped?.primaryId && Array.isArray(item.selectedAttributes)) {
+      for (const attr of item.selectedAttributes) {
+        const key = getAttrKey(attr);
+        if (!key) continue;
 
-    if (!isAvailable) {
+        const shopAttr = shopItem.attributes?.find(
+          (a) => getAttrKey(a) === key,
+        );
+
+        if (shopAttr?.quantity != null) {
+          const current = memory.attributes.get(key) ?? shopAttr.quantity;
+
+          availableQty = Math.min(availableQty, current);
+        }
+      }
+    }
+
+    // -----------------------------
+    // FINAL CHECK
+    // -----------------------------
+    if (item.quantity > availableQty) {
       results.push({
         isAvailable: false,
         message: `Only ${availableQty} left for ${shopItem.name}`,
@@ -426,27 +445,32 @@ const validateStockStateful = (items) => {
       continue;
     }
 
-    // ✅ DECREMENT MEMORY
-
+    // -----------------------------
+    // COMMIT MEMORY (ONLY AFTER PASS)
+    // -----------------------------
     memory.product.set(id, availableQty - item.quantity);
 
-    if (Array.isArray(item.selectedAttributes)) {
-      for (const attrId of item.selectedAttributes) {
-        const key = attrId.toString();
+    if (variantKey) {
+      const current = memory.variants.get(variantKey) ?? grouped.availableQty;
 
-        const attr = shopItem.attributes?.find((a) => a._id.toString() === key);
+      memory.variants.set(variantKey, current - item.quantity);
+    }
 
-        if (attr?.quantity != null) {
-          const current = getAvailable(memory.attributes, key, attr.quantity);
+    if (!grouped?.primaryId && Array.isArray(item.selectedAttributes)) {
+      for (const attr of item.selectedAttributes) {
+        const key = getAttrKey(attr);
+        if (!key) continue;
+
+        const shopAttr = shopItem.attributes?.find(
+          (a) => getAttrKey(a) === key,
+        );
+
+        if (shopAttr?.quantity != null) {
+          const current = memory.attributes.get(key) ?? shopAttr.quantity;
 
           memory.attributes.set(key, current - item.quantity);
         }
       }
-    }
-
-    if (variantKey) {
-      const current = memory.variants.get(variantKey);
-      memory.variants.set(variantKey, current - item.quantity);
     }
 
     results.push({

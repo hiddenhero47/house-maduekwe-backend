@@ -175,19 +175,20 @@ const shopItemValidationSchema = yup.object({
     .of(
       yup
         .object({
-          primaryAttribute: yup
-            .string()
-            .matches(/^[0-9a-fA-F]{24}$/, "Invalid primaryAttribute format")
-            .required("primaryAttribute is required"),
+          primaryAttribute: objectIdExists(
+            Attribute,
+            "Primary attribute",
+          ).required("Primary attribute is required"),
 
           options: yup
             .array()
             .of(
               yup.object({
-                attribute: yup
-                  .string()
-                  .matches(/^[0-9a-fA-F]{24}$/, "Invalid attribute format")
-                  .required("Option attribute is required"),
+                attribute: objectIdExists(
+                  Attribute,
+                  "Variant attribute",
+                ).required("Variant attribute is required"),
+
                 quantity: yup
                   .number()
                   .required("Quantity is required for each variant option")
@@ -200,7 +201,6 @@ const shopItemValidationSchema = yup.object({
               "Duplicate attributes in groupedVariants options",
               function (options) {
                 if (!options) return true;
-
                 const ids = options.map((o) => o.attribute);
                 return ids.length === new Set(ids).size;
               },
@@ -237,7 +237,9 @@ const shopItemValidationSchema = yup.object({
 
         if (!groups || !attributes) return true;
 
-        const attrMap = new Map(attributes.map((a) => [a._id?.toString(), a]));
+        const attrMap = new Map(
+          attributes.map((a) => [a.Attribute?.toString(), a]),
+        );
 
         const first = attrMap.get(groups[0]?.primaryAttribute);
 
@@ -259,14 +261,21 @@ const shopItemValidationSchema = yup.object({
 
         if (!groups || !attributes) return true;
 
-        const attrMap = new Map(attributes.map((a) => [a._id?.toString(), a]));
+        // ✅ STRICT: use Attribute._id only
+        const attrMap = new Map(
+          attributes.map((a) => [a.Attribute?.toString(), a]),
+        );
 
         for (const group of groups) {
-          const primary = attrMap.get(group.primaryAttribute?.toString());
+          const primaryKey = group.primaryAttribute?.toString();
 
-          if (!primary) return this.createError({
-            message: `Primary attribute "${group.primaryAttribute}" not found in attributes`,
-          });
+          const primary = attrMap.get(primaryKey);
+
+          if (!primary) {
+            return this.createError({
+              message: `Primary attribute "${group.primaryAttribute}" not found in attributes`,
+            });
+          }
 
           const primaryQty = primary.quantity || 0;
 
@@ -279,6 +288,41 @@ const shopItemValidationSchema = yup.object({
             return this.createError({
               message: `Grouped variant "${group.primaryAttribute}" exceeds primary stock (${totalOptionsQty} > ${primaryQty})`,
             });
+          }
+        }
+
+        return true;
+      },
+    )
+    .test(
+      "attributes-must-exist-in-parent",
+      "Grouped variants must reference attributes defined in attributes[]",
+      function (groups) {
+        const { attributes } = this.parent;
+
+        if (!groups || !attributes) return true;
+
+        const validAttrIds = new Set(
+          attributes.map((a) => a.Attribute?.toString()),
+        );
+
+        for (const group of groups) {
+          const primary = group.primaryAttribute?.toString();
+
+          if (!validAttrIds.has(primary)) {
+            return this.createError({
+              message: `Primary attribute "${primary}" is not in attributes[]`,
+            });
+          }
+
+          for (const opt of group.options || []) {
+            const attr = opt.attribute?.toString();
+
+            if (!validAttrIds.has(attr)) {
+              return this.createError({
+                message: `Variant attribute "${attr}" is not in attributes[]`,
+              });
+            }
           }
         }
 

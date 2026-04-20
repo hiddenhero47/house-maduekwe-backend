@@ -159,6 +159,21 @@ shopItemSchema.index(
 );
 
 shopItemSchema.pre("validate", function (next) {
+  const getAttrKey = (a) => {
+    if (!a?.Attribute) {
+      throw new Error("Attribute reference missing in attributes[]");
+    }
+
+    if (typeof a.Attribute === "object") {
+      if (!a.Attribute._id) {
+        throw new Error("Populated Attribute missing _id");
+      }
+      return a.Attribute._id.toString();
+    }
+
+    return a.Attribute.toString();
+  };
+
   const typeMap = new Map();
 
   for (const attr of this.attributes) {
@@ -173,24 +188,25 @@ shopItemSchema.pre("validate", function (next) {
     }
   }
 
-  // ✅ Validate groupedVariants references
-  const attributeIds = this.attributes.map((a) => a._id.toString());
+  if (!Array.isArray(this.groupedVariants)) return next();
+
+  const attributeIds = new Set(this.attributes.map(getAttrKey));
 
   for (const group of this.groupedVariants) {
-    // Check primaryAttribute exists
-    if (!attributeIds.includes(group.primaryAttribute.toString())) {
+    const primary = group.primaryAttribute?.toString();
+
+    if (!attributeIds.has(primary)) {
       return next(
         new Error("GroupedVariant primaryAttribute is not in attributes list"),
       );
     }
 
-    // Prevent duplicate options within group
     const seen = new Set();
 
     for (const opt of group.options) {
-      const optId = opt.attribute.toString();
+      const optId = opt.attribute?.toString();
 
-      if (!attributeIds.includes(optId)) {
+      if (!attributeIds.has(optId)) {
         return next(
           new Error(
             "GroupedVariant option attribute is not in attributes list",
@@ -208,38 +224,40 @@ shopItemSchema.pre("validate", function (next) {
     }
   }
 
-  if (this.groupedVariants.length > 0) {
-    const attributesMap = new Map(
-      this.attributes.map((a) => [a._id.toString(), a]),
-    );
+  const attributesMap = new Map(this.attributes.map((a) => [getAttrKey(a), a]));
 
-    const firstPrimary = attributesMap.get(
-      this.groupedVariants[0]?.primaryAttribute.toString(),
-    );
+  const firstGroup = this.groupedVariants.find((g) =>
+    attributesMap.has(g.primaryAttribute?.toString()),
+  );
 
-    const primaryType = firstPrimary?.type;
+  if (!firstGroup) {
+    return next(new Error("Invalid groupedVariants structure"));
+  }
 
-    for (const group of this.groupedVariants) {
-      const attr = attributesMap.get(group.primaryAttribute.toString());
+  const primaryType = attributesMap.get(
+    firstGroup.primaryAttribute.toString(),
+  ).type;
 
-      if (!attr) continue;
+  for (const group of this.groupedVariants) {
+    const attr = attributesMap.get(group.primaryAttribute?.toString());
 
-      if (attr.type !== primaryType) {
-        return next(
-          new Error("All groupedVariants must share same attribute type"),
-        );
-      }
+    if (!attr) continue;
 
-      if (
-        group.options.some(
-          (opt) =>
-            opt.attribute.toString() === group.primaryAttribute.toString(),
-        )
-      ) {
-        return next(
-          new Error("Primary attribute cannot be inside its own options"),
-        );
-      }
+    if (attr.type !== primaryType) {
+      return next(
+        new Error("All groupedVariants must share same attribute type"),
+      );
+    }
+
+    if (
+      group.options.some(
+        (opt) =>
+          opt.attribute?.toString() === group.primaryAttribute?.toString(),
+      )
+    ) {
+      return next(
+        new Error("Primary attribute cannot be inside its own options"),
+      );
     }
   }
 
@@ -253,16 +271,15 @@ shopItemSchema.pre("save", function (next) {
   next();
 });
 
-shopItemSchema.pre("findOneAndUpdate", function (next) {
-  const update = this.getUpdate();
-
+shopItemSchema.pre("findOneAndUpdate", async function (next) {
+  const update = this.getUpdate() || {};
   if (!update) return next();
 
-  // Handle $set wrappers
-  const data =
-    update.$set && typeof update.$set === "object" ? update.$set : update;
+  const data = update.$set ? update.$set : update;
 
-  // ✅ Normalize classTags
+  // -----------------------------
+  // NORMALIZE TAGS
+  // -----------------------------
   if (Array.isArray(data.classTags)) {
     data.classTags = [
       ...new Set(
@@ -273,24 +290,100 @@ shopItemSchema.pre("findOneAndUpdate", function (next) {
     ];
   }
 
-  // ✅ Enforce single default attribute on update
-  if (Array.isArray(data.attributes)) {
+  // -----------------------------
+  // LOAD EXISTING DOCUMENT
+  // -----------------------------
+  const doc = await this.model.findOne(this.getQuery()).lean();
+
+  if (!doc) return next();
+
+  // merge existing + update
+  const attributes = data.attributes ?? doc.attributes;
+  const groupedVariants = data.groupedVariants ?? doc.groupedVariants;
+
+  // -----------------------------
+  // SINGLE DEFAULT PER TYPE
+  // -----------------------------
+  if (Array.isArray(attributes)) {
     const typeMap = new Map();
 
-    for (const attr of data.attributes) {
+    for (const attr of attributes) {
       if (!attr.isDefault) continue;
 
       const type = attr.type;
+      if (!type) continue;
 
-      typeMap.set(type, (typeMap.get(type) || 0) + 1);
+      const count = (typeMap.get(type) || 0) + 1;
+      typeMap.set(type, count);
 
-      if (typeMap.get(type) > 1) {
+      if (count > 1) {
         return next(new Error(`Only one default allowed per type (${type})`));
       }
     }
   }
 
-  // Re-assign in case we used $set
+  // -----------------------------
+  // STRICT ATTRIBUTE KEY
+  // -----------------------------
+  const getAttrKey = (a) => {
+    if (!a?.Attribute) {
+      throw new Error("Attribute reference missing in attributes[]");
+    }
+
+    if (typeof a.Attribute === "object") {
+      if (!a.Attribute._id) {
+        throw new Error("Populated Attribute missing _id");
+      }
+      return a.Attribute._id.toString();
+    }
+
+    return a.Attribute.toString();
+  };
+
+  const attributeIds = new Set(attributes.map(getAttrKey));
+
+  // -----------------------------
+  // GROUPED VARIANTS VALIDATION
+  // -----------------------------
+  if (Array.isArray(groupedVariants)) {
+    for (const group of groupedVariants) {
+      const primary = group.primaryAttribute?.toString();
+
+      if (!attributeIds.has(primary)) {
+        return next(
+          new Error(
+            "GroupedVariant primaryAttribute is not in attributes list",
+          ),
+        );
+      }
+
+      const seen = new Set();
+
+      for (const opt of group.options || []) {
+        const optId = opt.attribute?.toString();
+
+        if (!attributeIds.has(optId)) {
+          return next(
+            new Error(
+              "GroupedVariant option attribute is not in attributes list",
+            ),
+          );
+        }
+
+        if (seen.has(optId)) {
+          return next(
+            new Error("Duplicate attribute in groupedVariants options"),
+          );
+        }
+
+        seen.add(optId);
+      }
+    }
+  }
+
+  // -----------------------------
+  // RE-ASSIGN UPDATE
+  // -----------------------------
   if (update.$set) {
     update.$set = data;
   } else {

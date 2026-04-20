@@ -33,9 +33,11 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
 
     const attributes = shopItem.attributes || [];
 
-    // 🧠 group attributes by type
+    // -------------------------
+    // GROUP BY TYPE
+    // -------------------------
     const grouped = attributes.reduce((acc, attr) => {
-      const type = attr.Attribute?.type;
+      const type = attr.type;
       if (!type) return acc;
 
       if (!acc[type]) acc[type] = [];
@@ -44,81 +46,91 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
       return acc;
     }, {});
 
+    // -------------------------
+    // STRICT selected attributes map (IDs ONLY)
+    // -------------------------
     const selectedMap = new Map(
-      (incomingItem.selectedAttributes || []).map((a) => [a._id.toString(), a]),
+      (incomingItem.selectedAttributes || []).map((id) => [
+        id.toString(),
+        true,
+      ]),
     );
 
     const finalSelectedAttributes = [];
 
     // -------------------------
-    // ✅ SIZE (REQUIRED)
+    // SIZE (REQUIRED)
     // -------------------------
-    if (grouped[attributeType.SIZE]?.length) {
-      const selectedSize = grouped[attributeType.SIZE].find((attr) =>
-        selectedMap.has(attr._id.toString()),
+    if (grouped.SIZE?.length) {
+      const selectedSize = grouped.SIZE.find((attr) =>
+        selectedMap.has(attr.Attribute.toString()),
       );
 
       if (!selectedSize) {
         throw new Error(`Size selection is required for ${shopItem.name}`);
       }
 
-      finalSelectedAttributes.push(selectedSize);
+      finalSelectedAttributes.push({
+        Attribute: selectedSize.Attribute.toString(),
+        type: selectedSize.type,
+      });
     }
 
     // -------------------------
-    // ✅ COLOR (ENFORCED)
+    // COLOR (REQUIRED OR SINGLE AUTO)
     // -------------------------
-    if (grouped[attributeType.COLOR]?.length) {
-      let selectedColor = grouped[attributeType.COLOR].find((attr) =>
-        selectedMap.has(attr._id.toString()),
+    if (grouped.COLOR?.length) {
+      let selectedColor = grouped.COLOR.find((attr) =>
+        selectedMap.has(attr.Attribute.toString()),
       );
 
       if (!selectedColor) {
-        if (grouped[attributeType.COLOR].length === 1) {
-          selectedColor = grouped[attributeType.COLOR][0];
+        if (grouped.COLOR.length === 1) {
+          selectedColor = grouped.COLOR[0];
         } else {
           throw new Error(`Color selection is required for ${shopItem.name}`);
         }
       }
 
-      finalSelectedAttributes.push(selectedColor);
+      finalSelectedAttributes.push({
+        Attribute: selectedColor.Attribute.toString(),
+        type: selectedColor.type,
+      });
     }
 
     // -------------------------
-    // ✅ AUTO TYPES (NEW 🔥)
+    // AUTO (STRICT: FIRST ONLY)
     // -------------------------
-    if (grouped[attributeType.AUTO]?.length) {
-      for (const attr of grouped[attributeType.AUTO]) {
-        // auto-select first or default
-        finalSelectedAttributes.push(attr);
-      }
+    if (grouped.AUTO?.length) {
+      finalSelectedAttributes.push({
+        Attribute: grouped.AUTO[0].Attribute.toString(),
+        type: grouped.AUTO[0].type,
+      });
     }
 
     // -------------------------
-    // ✅ OTHER TYPES (FALLBACK)
+    // OTHER TYPES
     // -------------------------
     for (const type in grouped) {
-      if (
-        type === attributeType.SIZE ||
-        type === attributeType.COLOR ||
-        type === attributeType.AUTO
-      )
-        continue;
+      if (type === "SIZE" || type === "COLOR" || type === "AUTO") continue;
 
       const selected = grouped[type].find((attr) =>
-        selectedMap.has(attr._id.toString()),
+        selectedMap.has(attr.Attribute.toString()),
       );
 
       if (selected) {
-        finalSelectedAttributes.push(selected);
+        finalSelectedAttributes.push({
+          Attribute: selected.Attribute.toString(),
+          type: selected.type,
+        });
       }
     }
 
     // -------------------------
-    // ✅ FINAL PUSH
+    // FINAL PUSH (STRICT SHAPE)
     // -------------------------
     validatedItems.push({
-      shopItem: shopItem._id,
+      shopItem: shopItem._id.toString(),
       quantity: incomingItem.quantity,
       selectedAttributes: finalSelectedAttributes,
     });
