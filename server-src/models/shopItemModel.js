@@ -188,7 +188,7 @@ shopItemSchema.pre("validate", function (next) {
     }
   }
 
-  if (!Array.isArray(this.groupedVariants)) return next();
+  if (!Array.isArray(this.groupedVariants) || this.groupedVariants.length === 0) return next();
 
   const attributeIds = new Set(this.attributes.map(getAttrKey));
 
