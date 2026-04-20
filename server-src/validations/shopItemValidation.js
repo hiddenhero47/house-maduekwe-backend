@@ -124,21 +124,28 @@ const shopItemValidationSchema = yup.object({
       },
     )
     .test(
-      "attributes-total-qty",
-      "Sum of attribute quantities cannot exceed product quantity",
+      "attributes-total-qty-per-type",
+      "Attribute quantities exceed product stock per type",
       function (attributes) {
         const { parent } = this;
 
         if (!attributes || !parent?.quantity) return true;
 
-        const totalAttrQty = attributes.reduce((sum, attr) => {
-          return sum + (attr.quantity || 0);
-        }, 0);
+        const typeMap = new Map();
 
-        if (totalAttrQty > parent.quantity) {
-          return this.createError({
-            message: `Attributes total quantity (${totalAttrQty}) exceeds product stock (${parent.quantity})`,
-          });
+        for (const attr of attributes) {
+          const type = attr.type || "unknown";
+          const qty = attr.quantity || 0;
+
+          typeMap.set(type, (typeMap.get(type) || 0) + qty);
+
+          if (typeMap.get(type) > parent.quantity) {
+            return this.createError({
+              message: `Attributes of type "${type}" exceed product stock (${typeMap.get(
+                type,
+              )} > ${parent.quantity})`,
+            });
+          }
         }
 
         return true;
