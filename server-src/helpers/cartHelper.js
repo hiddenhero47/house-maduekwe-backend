@@ -61,8 +61,8 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     // SIZE (REQUIRED)
     // -------------------------
-    if (grouped.SIZE?.length) {
-      const selectedSize = grouped.SIZE.find((attr) =>
+    if (grouped[attributeType.SIZE]?.length) {
+      const selectedSize = grouped[attributeType.SIZE].find((attr) =>
         selectedMap.has(attr.Attribute.toString()),
       );
 
@@ -79,14 +79,14 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     // COLOR (REQUIRED OR SINGLE AUTO)
     // -------------------------
-    if (grouped.COLOR?.length) {
-      let selectedColor = grouped.COLOR.find((attr) =>
+    if (grouped[attributeType.COLOR]?.length) {
+      let selectedColor = grouped[attributeType.COLOR].find((attr) =>
         selectedMap.has(attr.Attribute.toString()),
       );
 
       if (!selectedColor) {
-        if (grouped.COLOR.length === 1) {
-          selectedColor = grouped.COLOR[0];
+        if (grouped[attributeType.COLOR].length === 1) {
+          selectedColor = grouped[attributeType.COLOR][0];
         } else {
           throw new Error(`Color selection is required for ${shopItem.name}`);
         }
@@ -101,9 +101,9 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     // AUTO (STRICT: FIRST ONLY)
     // -------------------------
-    if (grouped.AUTO?.length) {
+    if (grouped[attributeType.AUTO]?.length) {
       finalSelectedAttributes.push({
-        Attribute: grouped.AUTO[0].Attribute.toString(),
+        Attribute: grouped[attributeType.AUTO][0].Attribute.toString(),
         type: grouped.AUTO[0].type,
       });
     }
