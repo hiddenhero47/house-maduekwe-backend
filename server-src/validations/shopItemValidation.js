@@ -264,7 +264,9 @@ const shopItemValidationSchema = yup.object({
         for (const group of groups) {
           const primary = attrMap.get(group.primaryAttribute?.toString());
 
-          if (!primary) return false;
+          if (!primary) return this.createError({
+            message: `Primary attribute "${group.primaryAttribute}" not found in attributes`,
+          });
 
           const primaryQty = primary.quantity || 0;
 
