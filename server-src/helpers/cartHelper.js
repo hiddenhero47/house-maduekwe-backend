@@ -65,6 +65,28 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
 
     const finalSelectedAttributes = [];
 
+    const getAttrId = (attr) => {
+      if (!attr?.Attribute) {
+        const error = new Error("Invalid attribute structure");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      // populated case
+      if (typeof attr.Attribute === "object") {
+        if (!attr.Attribute._id) {
+          const error = new Error("Populated attribute missing _id");
+          error.statusCode = 400;
+          throw error;
+        }
+
+        return attr.Attribute._id.toString();
+      }
+
+      // ObjectId case
+      return attr.Attribute.toString();
+    };
+
     // -------------------------
     // SIZE (REQUIRED)
     // -------------------------
