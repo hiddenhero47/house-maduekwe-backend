@@ -80,6 +80,9 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
         selectedMap.has(attr.Attribute._id.toString()),
       );
 
+      console.log(selectedSize, "selectedSize");
+      
+
       if (!selectedSize) {
         const error = new Error(
           `Size selection is required for ${shopItem.name}`,
@@ -101,6 +104,8 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
       let selectedColor = grouped[attributeType.COLOR].find((attr) =>
         selectedMap.has(attr.Attribute._id.toString()),
       );
+
+      console.log(selectedSize, "selectedColor");
 
       if (!selectedColor) {
         if (grouped[attributeType.COLOR].length === 1) {
