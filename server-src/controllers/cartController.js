@@ -3,6 +3,7 @@ const Cart = require("../models/cartModel");
 const { ShopItem } = require("../models/shopItemModel");
 const { addToCartSchema } = require("../validations/cartValidation");
 const {
+  getAttrId,
   hasChanged,
   buildValidatedCartItems,
 } = require("../helpers/cartHelper");
