@@ -91,7 +91,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // SIZE (REQUIRED)
     // -------------------------
     if (grouped[attributeType.SIZE]?.length) {
-      console.log(grouped[attributeType.SIZE].map(), "ALL SIZE IDS");
+      console.log(grouped[attributeType.SIZE].map(getAttrId), "ALL SIZE IDS");
 
       console.log([...selectedMap.keys()], "SELECTED IDS");
 
