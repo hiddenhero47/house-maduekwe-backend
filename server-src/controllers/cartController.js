@@ -41,41 +41,46 @@ const getCart = asyncHandler(async (req, res) => {
       continue;
     }
 
-    const selectedMap = new Map(
-      item.selectedAttributes.map((attr) => {
-        const id = getAttrId(attr);
-
-        if (!id) {
-          throw new Error("Invalid selectedAttributes in cart");
-        }
-
-        return [id, attr];
-      }),
+    // Map current product attributes
+    const productAttrMap = new Map(
+      item.shopItem.attributes
+        .map((attr) => {
+          const id = getAttrId(attr);
+          return id ? [id, attr] : null;
+        })
+        .filter(Boolean),
     );
 
+    let hasInvalidAttribute = false;
     const newSelectedAttributes = [];
 
-    for (const attr of item.shopItem.attributes) {
-      const attrId = getAttrId(attr);
+    for (const oldAttr of item.selectedAttributes) {
+      const attrId = getAttrId(oldAttr);
 
-      if (!attrId) continue;
+      if (!attrId) {
+        hasInvalidAttribute = true;
+        break;
+      }
 
-      const oldAttr = selectedMap.get(attrId);
+      const latestAttr = productAttrMap.get(attrId);
 
-      if (!oldAttr) continue;
+      // ❌ Attribute no longer exists → remove item
+      if (!latestAttr) {
+        hasInvalidAttribute = true;
+        break;
+      }
 
-      newSelectedAttributes.push(attr);
+      newSelectedAttributes.push(latestAttr);
 
       // 🔍 Detect changes
-      if (!updated && hasChanged(oldAttr, attr)) {
+      if (!updated && hasChanged(oldAttr, latestAttr)) {
         updated = true;
       }
     }
 
-    // ❗ If mismatch → attribute removed → drop item
-    if (newSelectedAttributes.length !== item.selectedAttributes.length) {
+    if (hasInvalidAttribute) {
       updated = true;
-      continue;
+      continue; // 🚨 remove item
     }
 
     item.selectedAttributes = newSelectedAttributes;
