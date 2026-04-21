@@ -161,4 +161,4 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
   return validatedItems;
 };
 
-module.exports = { hasChanged, buildValidatedCartItems };
+module.exports = { hasChanged, buildValidatedCartItems, getAttrId };
