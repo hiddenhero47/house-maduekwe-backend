@@ -80,9 +80,6 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
         selectedMap.has(attr.Attribute._id.toString()),
       );
 
-      console.log(selectedSize, "selectedSize");
-      
-
       if (!selectedSize) {
         const error = new Error(
           `Size selection is required for ${shopItem.name}`,
@@ -92,8 +89,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
       }
 
       finalSelectedAttributes.push({
-        Attribute: selectedSize.Attribute.toString(),
-        type: selectedSize.type,
+        ...selectedSize,
       });
     }
 
@@ -104,8 +100,6 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
       let selectedColor = grouped[attributeType.COLOR].find((attr) =>
         selectedMap.has(attr.Attribute._id.toString()),
       );
-
-      console.log(selectedSize, "selectedColor");
 
       if (!selectedColor) {
         if (grouped[attributeType.COLOR].length === 1) {
@@ -120,8 +114,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
       }
 
       finalSelectedAttributes.push({
-        Attribute: selectedColor.Attribute.toString(),
-        type: selectedColor.type,
+        ...selectedColor,
       });
     }
 
@@ -129,27 +122,8 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // AUTO (STRICT: FIRST ONLY)
     // -------------------------
     if (grouped[attributeType.AUTO]?.length) {
-      finalSelectedAttributes.push({
-        Attribute: grouped[attributeType.AUTO][0].Attribute.toString(),
-        type: grouped.AUTO[0].type,
-      });
-    }
-
-    // -------------------------
-    // OTHER TYPES
-    // -------------------------
-    for (const type in grouped) {
-      if (type === "SIZE" || type === "COLOR" || type === "AUTO") continue;
-
-      const selected = grouped[type].find((attr) =>
-        selectedMap.has(attr.Attribute.toString()),
-      );
-
-      if (selected) {
-        finalSelectedAttributes.push({
-          Attribute: selected.Attribute.toString(),
-          type: selected.type,
-        });
+      for (const attr of grouped[attributeType.AUTO]) {
+        finalSelectedAttributes.push({ ...attr });
       }
     }
 
