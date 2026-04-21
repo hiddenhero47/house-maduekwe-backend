@@ -35,6 +35,8 @@ const confirmCheckout = asyncHandler(async (req, res) => {
       currency: summary.payment.currency,
       status: PAYMENT_STATUS.PENDING,
     },
+
+    stock: summary.stock,
   });
 });
 
@@ -372,6 +374,7 @@ const validateStockStateful = (items) => {
       results.push({
         isAvailable: false,
         message: "Invalid shop item",
+        productId: shopItem._id,
       });
       continue;
     }
@@ -381,6 +384,7 @@ const validateStockStateful = (items) => {
       results.push({
         isAvailable: false,
         message: `${shopItem.name} is not available`,
+        productId: shopItem._id,
       });
       continue;
     }
@@ -396,6 +400,7 @@ const validateStockStateful = (items) => {
       results.push({
         isAvailable: false,
         message: grouped.message,
+        productId: shopItem._id,
       });
       continue;
     }
@@ -441,6 +446,7 @@ const validateStockStateful = (items) => {
       results.push({
         isAvailable: false,
         message: `Only ${availableQty} left for ${shopItem.name}`,
+        productId: shopItem._id,
       });
       continue;
     }
@@ -476,6 +482,7 @@ const validateStockStateful = (items) => {
     results.push({
       isAvailable: true,
       message: null,
+      productId: shopItem._id,
     });
   }
 
