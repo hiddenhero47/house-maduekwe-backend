@@ -65,17 +65,14 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
 
     const finalSelectedAttributes = [];
 
-    console.log(incomingItem.selectedAttributes, "incomingItem.selectedAttributes");
-    console.log(selectedMap, "selectedMap");
-    console.log(grouped, "grouped");
-    console.log(grouped[attributeType.SIZE][0].Attribute, "grouped[0].Attribute");
-    console.log(selectedMap.has(grouped[attributeType.SIZE][0].Attribute._id.toString()), "selectedMap check");
-    
-
     // -------------------------
     // SIZE (REQUIRED)
     // -------------------------
     if (grouped[attributeType.SIZE]?.length) {
+      console.log(grouped[attributeType.SIZE].map(getAttrId), "ALL SIZE IDS");
+
+      console.log([...selectedMap.keys()], "SELECTED IDS");
+
       const selectedSize = grouped[attributeType.SIZE].find((attr) =>
         selectedMap.has(attr.Attribute._id.toString()),
       );
