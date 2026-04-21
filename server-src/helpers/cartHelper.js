@@ -90,6 +90,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
 
       finalSelectedAttributes.push({
         ...selectedSize,
+        Attribute: selectedSize.Attribute._id.toString(), // STRICT SHAPE
       });
     }
 
@@ -115,6 +116,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
 
       finalSelectedAttributes.push({
         ...selectedColor,
+        Attribute: selectedColor.Attribute._id.toString(), // STRICT SHAPE
       });
     }
 
@@ -123,7 +125,10 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     if (grouped[attributeType.AUTO]?.length) {
       for (const attr of grouped[attributeType.AUTO]) {
-        finalSelectedAttributes.push({ ...attr });
+        finalSelectedAttributes.push({
+          ...attr,
+          Attribute: attr.Attribute._id.toString(),
+        }); // STRICT SHAPE
       }
     }
 
