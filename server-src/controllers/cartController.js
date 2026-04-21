@@ -41,13 +41,25 @@ const getCart = asyncHandler(async (req, res) => {
     }
 
     const selectedMap = new Map(
-      item.selectedAttributes.map((attr) => [attr._id.toString(), attr]),
+      item.selectedAttributes.map((attr) => {
+        const id = getAttrId(attr);
+
+        if (!id) {
+          throw new Error("Invalid selectedAttributes in cart");
+        }
+
+        return [id, attr];
+      }),
     );
 
     const newSelectedAttributes = [];
 
     for (const attr of item.shopItem.attributes) {
-      const oldAttr = selectedMap.get(attr._id.toString());
+      const attrId = getAttrId(attr);
+
+      if (!attrId) continue;
+
+      const oldAttr = selectedMap.get(attrId);
 
       if (!oldAttr) continue;
 
@@ -62,7 +74,7 @@ const getCart = asyncHandler(async (req, res) => {
     // ❗ If mismatch → attribute removed → drop item
     if (newSelectedAttributes.length !== item.selectedAttributes.length) {
       updated = true;
-      continue; // 🚨 remove this item completely
+      continue;
     }
 
     item.selectedAttributes = newSelectedAttributes;

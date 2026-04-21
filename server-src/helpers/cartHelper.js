@@ -1,8 +1,18 @@
 const { attributeType } = require("../models/attributeModel");
 
+const getAttrId = (a) => {
+  if (!a?.Attribute) return null;
+
+  if (typeof a.Attribute === "object") {
+    return a.Attribute._id?.toString();
+  }
+
+  return a.Attribute.toString();
+};
+
 const hasChanged = (oldAttr, newAttr) => {
-  if (oldAttr.Attribute?.toString() !== newAttr.Attribute?.toString())
-    return true;
+  if (getAttrId(oldAttr) !== getAttrId(newAttr)) return true;
+
   if (oldAttr.isDefault !== newAttr.isDefault) return true;
   if (oldAttr.quantity !== newAttr.quantity) return true;
   if (oldAttr.additionalAmount !== newAttr.additionalAmount) return true;
@@ -10,10 +20,8 @@ const hasChanged = (oldAttr, newAttr) => {
   const oldImages = oldAttr.images || [];
   const newImages = newAttr.images || [];
 
-  // ⚡ fast length check
   if (oldImages.length !== newImages.length) return true;
 
-  // ⚡ compare by id only (VERY fast)
   for (let i = 0; i < oldImages.length; i++) {
     if (oldImages[i]?.id !== newImages[i]?.id) return true;
   }
