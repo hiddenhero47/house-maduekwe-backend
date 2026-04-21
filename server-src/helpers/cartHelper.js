@@ -60,7 +60,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
 
     const finalSelectedAttributes = [];
 
-    console.log(selectedMap, "selectedMap"); 
+    console.log(incomingItem.selectedAttributes, "selectedMap"); 
     console.log(grouped, "grouped");
     
 
@@ -69,7 +69,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     if (grouped[attributeType.SIZE]?.length) {
       const selectedSize = grouped[attributeType.SIZE].find((attr) =>
-        selectedMap.has(attr.Attribute.toString()),
+        selectedMap.has(attr.Attribute._id.toString()),
       );
 
       if (!selectedSize) {
@@ -91,7 +91,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // -------------------------
     if (grouped[attributeType.COLOR]?.length) {
       let selectedColor = grouped[attributeType.COLOR].find((attr) =>
-        selectedMap.has(attr.Attribute.toString()),
+        selectedMap.has(attr.Attribute._id.toString()),
       );
 
       if (!selectedColor) {
