@@ -35,69 +35,75 @@ const getCart = asyncHandler(async (req, res) => {
   let updated = false;
   const newItemList = [];
 
-  // for (const item of cart.itemList) {
-  //   if (!item.selectedAttributes?.length) {
-  //     newItemList.push(item);
-  //     continue;
-  //   }
+  for (const item of cart.itemList) {
+    if (!item.selectedAttributes?.length) {
+      newItemList.push(item);
+      continue;
+    }
 
-  //   // Map current product attributes
-  //   const productAttrMap = new Map(
-  //     item.shopItem.attributes
-  //       .map((attr) => {
-  //         const id = getAttrId(attr);
-  //         return id ? [id, attr] : null;
-  //       })
-  //       .filter(Boolean),
-  //   );
+    // ✅ Map current product attributes (latest state)
+    const productAttrMap = new Map(
+      item.shopItem.attributes
+        .map((attr) => {
+          const id = getAttrId(attr);
+          return id ? [id, attr] : null;
+        })
+        .filter(Boolean),
+    );
 
-  //   let hasInvalidAttribute = false;
-  //   const newSelectedAttributes = [];
+    let hasInvalidAttribute = false;
+    const newSelectedAttributes = [];
 
-  //   for (const oldAttr of item.selectedAttributes) {
-  //     const attrId = getAttrId(oldAttr);
+    for (const oldAttr of item.selectedAttributes) {
+      const attrId = getAttrId(oldAttr);
 
-  //     if (!attrId) {
-  //       hasInvalidAttribute = true;
-  //       break;
-  //     }
+      if (!attrId) {
+        hasInvalidAttribute = true;
+        break;
+      }
 
-  //     const latestAttr = productAttrMap.get(attrId);
+      const latestAttr = productAttrMap.get(attrId);
 
-  //     // ❌ Attribute no longer exists → remove item
-  //     if (!latestAttr) {
-  //       hasInvalidAttribute = true;
-  //       break;
-  //     }
+      // ❌ Attribute removed from product
+      if (!latestAttr) {
+        hasInvalidAttribute = true;
+        break;
+      }
 
-  //     newSelectedAttributes.push(latestAttr);
+      // 🔁 Keep STRICT CART SHAPE (VERY IMPORTANT)
+      const normalizedAttr = {
+        ...latestAttr,
+        Attribute: attrId, // 🔥 force ID, not object
+      };
 
-  //     // 🔍 Detect changes
-  //     if (!updated && hasChanged(oldAttr, latestAttr)) {
-  //       updated = true;
-  //     }
-  //   }
+      newSelectedAttributes.push(normalizedAttr);
 
-  //   if (hasInvalidAttribute) {
-  //     updated = true;
-  //     continue; // 🚨 remove item
-  //   }
+      // 🔍 Detect changes
+      if (!updated && hasChanged(oldAttr, normalizedAttr)) {
+        updated = true;
+      }
+    }
 
-  //   item.selectedAttributes = newSelectedAttributes;
-  //   newItemList.push(item);
-  // }
+    if (hasInvalidAttribute) {
+      updated = true;
+      continue; // 🚨 remove item
+    }
+
+    item.selectedAttributes = newSelectedAttributes;
+    newItemList.push(item);
+  }
 
   // replace cart items
   if (newItemList.length !== cart.itemList.length) {
     updated = true;
   }
 
-  // cart.itemList = newItemList;
+  cart.itemList = newItemList;
 
   // Only save if something was removed
-  // if (cart.itemList.length !== originalLength || updated) {
-  //   await cart.save();
-  // }
+  if (cart.itemList.length !== originalLength || updated) {
+    await cart.save();
+  }
 
   res.json(cart);
 });
