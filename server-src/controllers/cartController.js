@@ -35,57 +35,57 @@ const getCart = asyncHandler(async (req, res) => {
   let updated = false;
   const newItemList = [];
 
-  for (const item of cart.itemList) {
-    if (!item.selectedAttributes?.length) {
-      newItemList.push(item);
-      continue;
-    }
+  // for (const item of cart.itemList) {
+  //   if (!item.selectedAttributes?.length) {
+  //     newItemList.push(item);
+  //     continue;
+  //   }
 
-    // Map current product attributes
-    const productAttrMap = new Map(
-      item.shopItem.attributes
-        .map((attr) => {
-          const id = getAttrId(attr);
-          return id ? [id, attr] : null;
-        })
-        .filter(Boolean),
-    );
+  //   // Map current product attributes
+  //   const productAttrMap = new Map(
+  //     item.shopItem.attributes
+  //       .map((attr) => {
+  //         const id = getAttrId(attr);
+  //         return id ? [id, attr] : null;
+  //       })
+  //       .filter(Boolean),
+  //   );
 
-    let hasInvalidAttribute = false;
-    const newSelectedAttributes = [];
+  //   let hasInvalidAttribute = false;
+  //   const newSelectedAttributes = [];
 
-    for (const oldAttr of item.selectedAttributes) {
-      const attrId = getAttrId(oldAttr);
+  //   for (const oldAttr of item.selectedAttributes) {
+  //     const attrId = getAttrId(oldAttr);
 
-      if (!attrId) {
-        hasInvalidAttribute = true;
-        break;
-      }
+  //     if (!attrId) {
+  //       hasInvalidAttribute = true;
+  //       break;
+  //     }
 
-      const latestAttr = productAttrMap.get(attrId);
+  //     const latestAttr = productAttrMap.get(attrId);
 
-      // ❌ Attribute no longer exists → remove item
-      if (!latestAttr) {
-        hasInvalidAttribute = true;
-        break;
-      }
+  //     // ❌ Attribute no longer exists → remove item
+  //     if (!latestAttr) {
+  //       hasInvalidAttribute = true;
+  //       break;
+  //     }
 
-      newSelectedAttributes.push(latestAttr);
+  //     newSelectedAttributes.push(latestAttr);
 
-      // 🔍 Detect changes
-      if (!updated && hasChanged(oldAttr, latestAttr)) {
-        updated = true;
-      }
-    }
+  //     // 🔍 Detect changes
+  //     if (!updated && hasChanged(oldAttr, latestAttr)) {
+  //       updated = true;
+  //     }
+  //   }
 
-    if (hasInvalidAttribute) {
-      updated = true;
-      continue; // 🚨 remove item
-    }
+  //   if (hasInvalidAttribute) {
+  //     updated = true;
+  //     continue; // 🚨 remove item
+  //   }
 
-    item.selectedAttributes = newSelectedAttributes;
-    newItemList.push(item);
-  }
+  //   item.selectedAttributes = newSelectedAttributes;
+  //   newItemList.push(item);
+  // }
 
   // replace cart items
   if (newItemList.length !== cart.itemList.length) {
