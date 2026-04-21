@@ -92,12 +92,12 @@ const getCart = asyncHandler(async (req, res) => {
     updated = true;
   }
 
-  cart.itemList = newItemList;
+  // cart.itemList = newItemList;
 
   // Only save if something was removed
-  if (cart.itemList.length !== originalLength || updated) {
-    await cart.save();
-  }
+  // if (cart.itemList.length !== originalLength || updated) {
+  //   await cart.save();
+  // }
 
   res.json(cart);
 });
