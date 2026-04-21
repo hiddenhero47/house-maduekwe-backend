@@ -52,17 +52,18 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
     // STRICT selected attributes map (IDs ONLY)
     // -------------------------
     const selectedMap = new Map(
-      (incomingItem.selectedAttributes || []).map((id) => [
-        id.toString(),
-        true,
-      ]),
+      (incomingItem.selectedAttributes || []).map((attr) => {
+        if (!attr?.Attribute?._id) {
+          const error = new Error("Invalid selectedAttributes format");
+          error.statusCode = 400;
+          throw error;
+        }
+
+        return [attr.Attribute._id.toString(), true];
+      }),
     );
 
     const finalSelectedAttributes = [];
-
-    console.log(incomingItem.selectedAttributes, "selectedMap"); 
-    console.log(grouped, "grouped");
-    
 
     // -------------------------
     // SIZE (REQUIRED)
