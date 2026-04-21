@@ -158,15 +158,25 @@ shopItemSchema.index(
   },
 );
 
+const badRequest = (msg) => {
+  const err = new Error(msg);
+  err.statusCode = 400;
+  return err;
+};
+
 shopItemSchema.pre("validate", function (next) {
   const getAttrKey = (a) => {
     if (!a?.Attribute) {
-      throw new Error("Attribute reference missing in attributes[]");
+      const error = new Error("Attribute reference missing in attributes[]");
+      error.statusCode = 400;
+      throw error;
     }
 
     if (typeof a.Attribute === "object") {
       if (!a.Attribute._id) {
-        throw new Error("Populated Attribute missing _id");
+        const error = new Error("Populated Attribute missing _id");
+        error.statusCode = 400;
+        throw error;
       }
       return a.Attribute._id.toString();
     }
@@ -184,11 +194,12 @@ shopItemSchema.pre("validate", function (next) {
     typeMap.set(type, (typeMap.get(type) || 0) + 1);
 
     if (typeMap.get(type) > 1) {
-      return next(new Error(`Only one default allowed per type (${type})`));
+      return next(badRequest(`Only one default allowed per type (${type})`));
     }
   }
 
-  if (!Array.isArray(this.groupedVariants) || this.groupedVariants.length === 0) return next();
+  if (!Array.isArray(this.groupedVariants) || this.groupedVariants.length === 0)
+    return next();
 
   const attributeIds = new Set(this.attributes.map(getAttrKey));
 
@@ -197,7 +208,7 @@ shopItemSchema.pre("validate", function (next) {
 
     if (!attributeIds.has(primary)) {
       return next(
-        new Error("GroupedVariant primaryAttribute is not in attributes list"),
+        badRequest("GroupedVariant primaryAttribute is not in attributes list"),
       );
     }
 
@@ -208,7 +219,7 @@ shopItemSchema.pre("validate", function (next) {
 
       if (!attributeIds.has(optId)) {
         return next(
-          new Error(
+          badRequest(
             "GroupedVariant option attribute is not in attributes list",
           ),
         );
@@ -216,7 +227,7 @@ shopItemSchema.pre("validate", function (next) {
 
       if (seen.has(optId)) {
         return next(
-          new Error("Duplicate attribute in groupedVariants options"),
+          badRequest("Duplicate attribute in groupedVariants options"),
         );
       }
 
@@ -231,7 +242,7 @@ shopItemSchema.pre("validate", function (next) {
   );
 
   if (!firstGroup) {
-    return next(new Error("Invalid groupedVariants structure"));
+    return next(badRequest("Invalid groupedVariants structure"));
   }
 
   const primaryType = attributesMap.get(
@@ -245,7 +256,7 @@ shopItemSchema.pre("validate", function (next) {
 
     if (attr.type !== primaryType) {
       return next(
-        new Error("All groupedVariants must share same attribute type"),
+        badRequest("All groupedVariants must share same attribute type"),
       );
     }
 
@@ -256,7 +267,7 @@ shopItemSchema.pre("validate", function (next) {
       )
     ) {
       return next(
-        new Error("Primary attribute cannot be inside its own options"),
+        badRequest("Primary attribute cannot be inside its own options"),
       );
     }
   }
@@ -317,7 +328,7 @@ shopItemSchema.pre("findOneAndUpdate", async function (next) {
       typeMap.set(type, count);
 
       if (count > 1) {
-        return next(new Error(`Only one default allowed per type (${type})`));
+        return next(badRequest(`Only one default allowed per type (${type})`));
       }
     }
   }
@@ -327,12 +338,16 @@ shopItemSchema.pre("findOneAndUpdate", async function (next) {
   // -----------------------------
   const getAttrKey = (a) => {
     if (!a?.Attribute) {
-      throw new Error("Attribute reference missing in attributes[]");
+      const error = new Error("Attribute reference missing in attributes[]");
+      error.statusCode = 400;
+      throw error;
     }
 
     if (typeof a.Attribute === "object") {
       if (!a.Attribute._id) {
-        throw new Error("Populated Attribute missing _id");
+        const error = new Error("Populated Attribute missing _id");
+        error.statusCode = 400;
+        throw error;
       }
       return a.Attribute._id.toString();
     }
@@ -351,7 +366,7 @@ shopItemSchema.pre("findOneAndUpdate", async function (next) {
 
       if (!attributeIds.has(primary)) {
         return next(
-          new Error(
+          badRequest(
             "GroupedVariant primaryAttribute is not in attributes list",
           ),
         );
@@ -364,7 +379,7 @@ shopItemSchema.pre("findOneAndUpdate", async function (next) {
 
         if (!attributeIds.has(optId)) {
           return next(
-            new Error(
+            badRequest(
               "GroupedVariant option attribute is not in attributes list",
             ),
           );
@@ -372,7 +387,7 @@ shopItemSchema.pre("findOneAndUpdate", async function (next) {
 
         if (seen.has(optId)) {
           return next(
-            new Error("Duplicate attribute in groupedVariants options"),
+            badRequest("Duplicate attribute in groupedVariants options"),
           );
         }
 
