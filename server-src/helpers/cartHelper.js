@@ -65,6 +65,7 @@ const buildValidatedCartItems = (itemList, shopItemMap) => {
 
     const finalSelectedAttributes = [];
 
+    console.log(incomingItem.selectedAttributes, "incomingItem.selectedAttributes");
     console.log(selectedMap, "selectedMap");
     console.log(grouped, "grouped");
     console.log(grouped[attributeType.SIZE][0].Attribute, "grouped[0].Attribute");
