@@ -97,16 +97,12 @@ const checkout = asyncHandler(async (req, res) => {
       // -----------------------------
       // 2️⃣ ATTRIBUTE STOCK (NON-GROUPED ONLY)
       // -----------------------------
-      if (!primaryId && Array.isArray(item.selectedAttributes)) {
+      if (Array.isArray(item.selectedAttributes) && item.selectedAttributes.length > 0) {
         const attrIds = item.selectedAttributes
           .map((a) =>
             typeof a.Attribute === "object" ? a.Attribute._id : a.Attribute,
           )
           .filter(Boolean);
-
-          console.log(selectedAttributes, "selectedAttributes");
-
-          console.log(attrIds, "attrIds");
 
         const attrResult = await ShopItem.updateOne(
           {
