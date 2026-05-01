@@ -104,6 +104,10 @@ const checkout = asyncHandler(async (req, res) => {
           )
           .filter(Boolean);
 
+          console.log(selectedAttributes, "selectedAttributes");
+
+          console.log(attrIds, "attrIds");
+
         const attrResult = await ShopItem.updateOne(
           {
             _id: item.shopItem._id,
