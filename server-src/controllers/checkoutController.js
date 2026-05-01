@@ -98,7 +98,10 @@ const checkout = asyncHandler(async (req, res) => {
       // 2️⃣ ATTRIBUTE STOCK (NON-GROUPED ONLY)
       // -----------------------------
       if (!primaryId && Array.isArray(item.selectedAttributes)) {
-        const attrIds = item.selectedAttributes.map(getAttrKey).filter(Boolean);
+        const attrIds = item.selectedAttributes
+          .map(getAttrKey)
+          .filter(Boolean)
+          .map((id) => new mongoose.Types.ObjectId(id));
 
         const attrResult = await ShopItem.updateOne(
           { _id: item.shopItem._id },
@@ -111,7 +114,6 @@ const checkout = asyncHandler(async (req, res) => {
             arrayFilters: [
               {
                 "attr.Attribute": { $in: attrIds },
-                "attr.quantity": { $gte: item.quantity },
               },
             ],
             session,
