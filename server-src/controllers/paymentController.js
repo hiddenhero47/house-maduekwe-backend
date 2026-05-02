@@ -142,7 +142,7 @@ const getPayments = asyncHandler(async (req, res) => {
 // @access Private
 const processStripeEvent = async (req, res) => {
   const { event } = req.webhook;
-  
+
   if (event.type !== "payment_intent.succeeded") return;
 
   const intentId = event.data.object.id;
@@ -210,10 +210,30 @@ const createStripeIntent = asyncHandler(async (req, res) => {
     throw new Error("Payment not found");
   }
 
-  // Optional: prevent intent creation for already-successful payments
+  // 🚫 Already paid
   if (payment.status === PAYMENT_STATUS.SUCCESS) {
     res.status(400);
     throw new Error("Payment already completed");
+  }
+
+  // 🔗 Get related order
+  const order = await Order.findById(payment.orderId).lean();
+
+  if (!order) {
+    res.status(404);
+    throw new Error("Order not found");
+  }
+
+  // ❌ Prevent payment for cancelled orders
+  if (order.status === ORDER_STATUS.CANCELLED) {
+    res.status(400);
+    throw new Error("Order has been cancelled");
+  }
+
+  // ⏰ EXPIRY CHECK (only if you are using expiresAt)
+  if (order.expiresAt && order.expiresAt < new Date()) {
+    res.status(400);
+    throw new Error("Order has expired. Please create a new order.");
   }
 
   const intent = await stripe.paymentIntents.create(

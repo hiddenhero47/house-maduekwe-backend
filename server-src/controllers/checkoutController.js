@@ -15,9 +15,21 @@ const confirmCheckout = asyncHandler(async (req, res) => {
   await checkoutValidationSchema.validate(req.body, {
     abortEarly: false,
   });
+
+  const pendingOrders = await Order.find({
+    user: req.user._id,
+    status: ORDER_STATUS.PENDING,
+    // expiresAt: { $gt: new Date() },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
   const summary = await buildCheckoutSummary(req);
 
   res.status(200).json({
+    isPendingOrder: pendingOrders.length > 0,
+    pendingOrders,
+
     order: {
       items: summary.order.items,
       address: summary.address,
@@ -47,6 +59,21 @@ const checkout = asyncHandler(async (req, res) => {
   await checkoutValidationSchema.validate(req.body, {
     abortEarly: false,
   });
+  const pendingOrders = await Order.find({
+    user: req.user._id,
+    status: ORDER_STATUS.PENDING,
+    // expiresAt: { $gt: new Date() },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (pendingOrders.length > 0) {
+    res.status(400);
+    throw new Error(
+      "You already have a pending order. Complete or cancel it first.",
+    );
+  }
+
   const session = await mongoose.startSession();
 
   try {
@@ -68,11 +95,15 @@ const checkout = asyncHandler(async (req, res) => {
 
     const { user, address, order, payment } = summary;
 
+    const rollbackInfo = [];
+
     for (const item of summary.order.items) {
       const groupedResult = validateGroupedVariants(item);
 
       const primaryId = groupedResult?.primaryId;
       const optionId = groupedResult?.optionId;
+
+      let attrIds = [];
 
       // -----------------------------
       // 1️⃣ MAIN PRODUCT STOCK
@@ -101,7 +132,7 @@ const checkout = asyncHandler(async (req, res) => {
         Array.isArray(item.selectedAttributes) &&
         item.selectedAttributes.length > 0
       ) {
-        const attrIds = item.selectedAttributes
+        attrIds = item.selectedAttributes
           .map((a) =>
             typeof a.Attribute === "object" ? a.Attribute._id : a.Attribute,
           )
@@ -168,7 +199,17 @@ const checkout = asyncHandler(async (req, res) => {
           );
         }
       }
+
+      // ✅ AFTER ALL SUCCESS → push rollback
+      rollbackInfo.push({
+        quantity: item.quantity,
+        shopItem: item.shopItem._id,
+        attributes: attrIds,
+        groupedVariant: primaryId && optionId ? { primaryId, optionId } : null,
+      });
     }
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     // 🧾 Create Order
     const createdOrder = await Order.create(
@@ -183,6 +224,8 @@ const checkout = asyncHandler(async (req, res) => {
           shippingFee: order.shippingFee,
           status: ORDER_STATUS.PENDING,
           shippedBy: "Internal",
+          expiresAt, // ✅ added new
+          rollbackInfo: rollbackInfo.length > 0 ? rollbackInfo : null, // ✅ added new
         },
       ],
       { session },

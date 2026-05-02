@@ -4,6 +4,7 @@ const {
   getOrders,
   getOrderById,
   updateOrderStatus,
+  cancelOrder,
 } = require("../controllers/orderController");
 const {
   confirmCheckout,
@@ -24,5 +25,6 @@ router.patch(
   secureRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]),
   updateOrderStatus,
 );
+router.patch("/:id/cancel", protect, cancelOrder);
 
 module.exports = router;

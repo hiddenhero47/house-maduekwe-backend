@@ -115,6 +115,44 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
+    expiresAt: {
+      type: Date,
+      index: true,
+    },
+
+    extraInfo: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    rollbackInfo: {
+      type: [
+        {
+          quantity: {
+            type: Number,
+            required: true,
+          },
+
+          shopItem: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true,
+          },
+
+          attributes: [
+            {
+              type: mongoose.Schema.Types.ObjectId,
+            },
+          ],
+
+          groupedVariant: {
+            primaryId: mongoose.Schema.Types.ObjectId,
+            optionId: mongoose.Schema.Types.ObjectId,
+          },
+        },
+      ],
+      default: null,
+    },
+
     updatedBy: {
       id: {
         type: mongoose.Schema.Types.ObjectId,
