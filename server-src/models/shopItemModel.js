@@ -272,6 +272,54 @@ shopItemSchema.pre("validate", function (next) {
     }
   }
 
+  // -----------------------------
+  // ATTRIBUTE TOTAL ≤ PRODUCT (per type)
+  // -----------------------------
+  const attrTypeQtyMap = new Map();
+
+  for (const attr of this.attributes) {
+    const type = attr.type;
+    const qty = attr.quantity || 0;
+
+    attrTypeQtyMap.set(type, (attrTypeQtyMap.get(type) || 0) + qty);
+
+    if (attrTypeQtyMap.get(type) > this.quantity) {
+      return next(
+        badRequest(
+          `Attributes of type "${type}" exceed product stock (${attrTypeQtyMap.get(
+            type,
+          )} > ${this.quantity})`,
+        ),
+      );
+    }
+  }
+
+  // -----------------------------
+  // VARIANT TOTAL ≤ PRIMARY ATTRIBUTE
+  // -----------------------------
+  for (const group of this.groupedVariants) {
+    const primaryKey = group.primaryAttribute?.toString();
+
+    const primaryAttr = attributesMap.get(primaryKey);
+
+    if (!primaryAttr) continue;
+
+    const primaryQty = primaryAttr.quantity || 0;
+
+    const totalOptionsQty = (group.options || []).reduce(
+      (sum, opt) => sum + (opt.quantity || 0),
+      0,
+    );
+
+    if (totalOptionsQty > primaryQty) {
+      return next(
+        badRequest(
+          `Grouped variant exceeds primary stock (${totalOptionsQty} > ${primaryQty})`,
+        ),
+      );
+    }
+  }
+
   next();
 });
 
@@ -403,6 +451,61 @@ shopItemSchema.pre("findOneAndUpdate", async function (next) {
     update.$set = data;
   } else {
     this.setUpdate(data);
+  }
+
+  // -----------------------------
+  // ATTRIBUTE TOTAL ≤ PRODUCT (per type)
+  // -----------------------------
+  if (Array.isArray(attributes)) {
+    const productQty = data.quantity ?? doc.quantity;
+
+    const typeMap = new Map();
+
+    for (const attr of attributes) {
+      const type = attr.type;
+      const qty = attr.quantity || 0;
+
+      typeMap.set(type, (typeMap.get(type) || 0) + qty);
+
+      if (typeMap.get(type) > productQty) {
+        return next(
+          badRequest(
+            `Attributes of type "${type}" exceed product stock (${typeMap.get(
+              type,
+            )} > ${productQty})`,
+          ),
+        );
+      }
+    }
+  }
+
+  // -----------------------------
+  // VARIANT TOTAL ≤ PRIMARY ATTRIBUTE
+  // -----------------------------
+  if (Array.isArray(groupedVariants) && Array.isArray(attributes)) {
+    const attrMap = new Map(attributes.map((a) => [getAttrKey(a), a]));
+
+    for (const group of groupedVariants) {
+      const primaryKey = group.primaryAttribute?.toString();
+
+      const primaryAttr = attrMap.get(primaryKey);
+      if (!primaryAttr) continue;
+
+      const primaryQty = primaryAttr.quantity || 0;
+
+      const totalOptionsQty = (group.options || []).reduce(
+        (sum, opt) => sum + (opt.quantity || 0),
+        0,
+      );
+
+      if (totalOptionsQty > primaryQty) {
+        return next(
+          badRequest(
+            `Grouped variant exceeds primary stock (${totalOptionsQty} > ${primaryQty})`,
+          ),
+        );
+      }
+    }
   }
 
   next();

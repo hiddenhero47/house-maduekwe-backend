@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const { Order, ORDER_STATUS } = require("../models/orderModel");
 const { ROLE } = require("../models/userModel");
 const { Payment } = require("../models/paymentModel");
+const { reverseStockFromRollback } = require("../helpers/orderHelper");
+const { PAYMENT_STATUS } = require("../models/paymentModel");
 
 const ORDER_STATUS_FLOW = {
   pending: ["processing", "cancelled"],
@@ -253,9 +255,89 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc Cancel order
+// @route PATCH /api/orders/:id/cancel
+// @access Private (Owner, Admin, Super Admin)
+const cancelOrder = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const order = await Order.findById(req.params.id).session(session);
+
+    if (!order) {
+      res.status(404);
+      throw new Error("Order not found");
+    }
+
+    // 🔐 AUTHORIZATION
+    const isOwner = order.user.toString() === req.user._id.toString();
+    const isAdmin =
+      req.user.role === ROLE.ADMIN ||
+      req.user.role === ROLE.SUPER_ADMIN;
+
+    if (!isOwner && !isAdmin) {
+      res.status(403);
+      throw new Error("Not authorized to cancel this order");
+    }
+
+    if (order.status === ORDER_STATUS.CANCELLED) {
+      throw new Error("Order already cancelled");
+    }
+
+    // optional: block shipped
+    if (order.status !== ORDER_STATUS.PENDING) {
+      throw new Error("Cannot cancel shipped order");
+    }
+
+    // 🔁 RESTORE STOCK (only if exists)
+    if (order.rollbackInfo) {
+      await reverseStockFromRollback({
+        rollbackInfo: order.rollbackInfo,
+        session,
+      });
+
+      // 🚨 prevent double rollback
+      order.rollbackInfo = null;
+    }
+
+    // 💳 update payment (safe even if null)
+    if (order.paymentId) {
+      await Payment.updateOne(
+        { _id: order.paymentId },
+        { status: PAYMENT_STATUS.CANCELLED },
+        { session },
+      );
+    }
+
+    // 📦 cancel order
+    order.status = ORDER_STATUS.CANCELLED;
+
+    order.updatedBy = {
+      id: req.user._id,
+      email: req.user.email,
+    };
+
+    await order.save({ session });
+
+    await session.commitTransaction();
+
+    res.status(200).json({
+      message: "Order cancelled successfully",
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+});
+
 module.exports = {
   getMyOrders,
   getOrders,
   getOrderById,
   updateOrderStatus,
+  cancelOrder,
 };

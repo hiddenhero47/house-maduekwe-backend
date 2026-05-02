@@ -15,9 +15,21 @@ const confirmCheckout = asyncHandler(async (req, res) => {
   await checkoutValidationSchema.validate(req.body, {
     abortEarly: false,
   });
+
+  const pendingOrders = await Order.find({
+    user: req.user._id,
+    status: ORDER_STATUS.PENDING,
+    // expiresAt: { $gt: new Date() },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
   const summary = await buildCheckoutSummary(req);
 
   res.status(200).json({
+    isPendingOrder: pendingOrders.length > 0,
+    pendingOrders,
+
     order: {
       items: summary.order.items,
       address: summary.address,
@@ -47,6 +59,21 @@ const checkout = asyncHandler(async (req, res) => {
   await checkoutValidationSchema.validate(req.body, {
     abortEarly: false,
   });
+  const pendingOrders = await Order.find({
+    user: req.user._id,
+    status: ORDER_STATUS.PENDING,
+    // expiresAt: { $gt: new Date() },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (pendingOrders.length > 0) {
+    res.status(400);
+    throw new Error(
+      "You already have a pending order. Complete or cancel it first.",
+    );
+  }
+
   const session = await mongoose.startSession();
 
   try {
@@ -68,11 +95,15 @@ const checkout = asyncHandler(async (req, res) => {
 
     const { user, address, order, payment } = summary;
 
+    const rollbackInfo = [];
+
     for (const item of summary.order.items) {
       const groupedResult = validateGroupedVariants(item);
 
       const primaryId = groupedResult?.primaryId;
       const optionId = groupedResult?.optionId;
+
+      let attrIds = [];
 
       // -----------------------------
       // 1️⃣ MAIN PRODUCT STOCK
@@ -97,8 +128,11 @@ const checkout = asyncHandler(async (req, res) => {
       // -----------------------------
       // 2️⃣ ATTRIBUTE STOCK (NON-GROUPED ONLY)
       // -----------------------------
-      if (Array.isArray(item.selectedAttributes) && item.selectedAttributes.length > 0) {
-        const attrIds = item.selectedAttributes
+      if (
+        Array.isArray(item.selectedAttributes) &&
+        item.selectedAttributes.length > 0
+      ) {
+        attrIds = item.selectedAttributes
           .map((a) =>
             typeof a.Attribute === "object" ? a.Attribute._id : a.Attribute,
           )
@@ -165,7 +199,17 @@ const checkout = asyncHandler(async (req, res) => {
           );
         }
       }
+
+      // ✅ AFTER ALL SUCCESS → push rollback
+      rollbackInfo.push({
+        quantity: item.quantity,
+        shopItem: item.shopItem._id,
+        attributes: attrIds,
+        groupedVariant: primaryId && optionId ? { primaryId, optionId } : null,
+      });
     }
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     // 🧾 Create Order
     const createdOrder = await Order.create(
@@ -180,6 +224,8 @@ const checkout = asyncHandler(async (req, res) => {
           shippingFee: order.shippingFee,
           status: ORDER_STATUS.PENDING,
           shippedBy: "Internal",
+          expiresAt, // ✅ added new
+          rollbackInfo: rollbackInfo.length > 0 ? rollbackInfo : null, // ✅ added new
         },
       ],
       { session },
@@ -460,17 +506,24 @@ const validateStockStateful = (items) => {
     }
 
     // -----------------------------
-    // COMMIT MEMORY (ONLY AFTER PASS)
+    // COMMIT MEMORY (CONSISTENT MODEL)
     // -----------------------------
-    memory.product.set(id, availableQty - item.quantity);
 
+    // 1️⃣ PRODUCT (always update)
+    const currentProduct = memory.product.get(id) ?? shopItem.quantity;
+
+    memory.product.set(id, currentProduct - item.quantity);
+
+    // 2️⃣ VARIANT (if exists)
     if (variantKey) {
-      const current = memory.variants.get(variantKey) ?? grouped.availableQty;
+      const currentVariant =
+        memory.variants.get(variantKey) ?? grouped.availableQty;
 
-      memory.variants.set(variantKey, current - item.quantity);
+      memory.variants.set(variantKey, currentVariant - item.quantity);
     }
 
-    if (!grouped?.primaryId && Array.isArray(item.selectedAttributes)) {
+    // 3️⃣ ATTRIBUTES (ALWAYS update — no condition)
+    if (Array.isArray(item.selectedAttributes)) {
       for (const attr of item.selectedAttributes) {
         const key = getAttrKey(attr);
         if (!key) continue;
@@ -480,9 +533,9 @@ const validateStockStateful = (items) => {
         );
 
         if (shopAttr?.quantity != null) {
-          const current = memory.attributes.get(key) ?? shopAttr.quantity;
+          const currentAttr = memory.attributes.get(key) ?? shopAttr.quantity;
 
-          memory.attributes.set(key, current - item.quantity);
+          memory.attributes.set(key, currentAttr - item.quantity);
         }
       }
     }
