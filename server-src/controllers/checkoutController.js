@@ -97,7 +97,10 @@ const checkout = asyncHandler(async (req, res) => {
       // -----------------------------
       // 2️⃣ ATTRIBUTE STOCK (NON-GROUPED ONLY)
       // -----------------------------
-      if (Array.isArray(item.selectedAttributes) && item.selectedAttributes.length > 0) {
+      if (
+        Array.isArray(item.selectedAttributes) &&
+        item.selectedAttributes.length > 0
+      ) {
         const attrIds = item.selectedAttributes
           .map((a) =>
             typeof a.Attribute === "object" ? a.Attribute._id : a.Attribute,
@@ -460,17 +463,24 @@ const validateStockStateful = (items) => {
     }
 
     // -----------------------------
-    // COMMIT MEMORY (ONLY AFTER PASS)
+    // COMMIT MEMORY (CONSISTENT MODEL)
     // -----------------------------
-    memory.product.set(id, availableQty - item.quantity);
 
+    // 1️⃣ PRODUCT (always update)
+    const currentProduct = memory.product.get(id) ?? shopItem.quantity;
+
+    memory.product.set(id, currentProduct - item.quantity);
+
+    // 2️⃣ VARIANT (if exists)
     if (variantKey) {
-      const current = memory.variants.get(variantKey) ?? grouped.availableQty;
+      const currentVariant =
+        memory.variants.get(variantKey) ?? grouped.availableQty;
 
-      memory.variants.set(variantKey, current - item.quantity);
+      memory.variants.set(variantKey, currentVariant - item.quantity);
     }
 
-    if (!grouped?.primaryId && Array.isArray(item.selectedAttributes)) {
+    // 3️⃣ ATTRIBUTES (ALWAYS update — no condition)
+    if (Array.isArray(item.selectedAttributes)) {
       for (const attr of item.selectedAttributes) {
         const key = getAttrKey(attr);
         if (!key) continue;
@@ -480,9 +490,9 @@ const validateStockStateful = (items) => {
         );
 
         if (shopAttr?.quantity != null) {
-          const current = memory.attributes.get(key) ?? shopAttr.quantity;
+          const currentAttr = memory.attributes.get(key) ?? shopAttr.quantity;
 
-          memory.attributes.set(key, current - item.quantity);
+          memory.attributes.set(key, currentAttr - item.quantity);
         }
       }
     }
