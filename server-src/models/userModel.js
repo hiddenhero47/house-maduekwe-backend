@@ -6,6 +6,25 @@ const ROLE = {
   BASIC: "basic",
 };
 
+const TOKENS = {
+  VERIFY: "verification",
+  RESET: "resetPassword",
+};
+
+const tokenEntrySchema = new mongoose.Schema(
+  {
+    code: {
+      type: String,
+      required: true,
+    },
+    expiresAt: {
+      type: Date,
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
 const userSchema = mongoose.Schema(
   {
     name: {
@@ -65,6 +84,15 @@ const userSchema = mongoose.Schema(
         },
       },
     ],
+    verified: {
+      type: Boolean,
+      default: false,
+    },
+    tokenCache: {
+      type: Map,
+      of: tokenEntrySchema,
+      default: {},
+    },
   },
   {
     timestamps: true,
@@ -109,4 +137,4 @@ userSchema.pre("save", async function (next) {
 });
 
 const User = mongoose.model("User", userSchema);
-module.exports = { User, ROLE };
+module.exports = { User, ROLE, TOKENS };
