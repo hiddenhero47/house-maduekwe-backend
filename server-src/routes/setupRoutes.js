@@ -12,7 +12,7 @@ router.post(
 
 router.post(
   "/backfill-users",
-  timeWindowGuard("2026-04-05T00:00:00Z", 24),
+  timeWindowGuard("2026-05-03T00:00:00Z", 24),
   backfillUserFields
 );
 
