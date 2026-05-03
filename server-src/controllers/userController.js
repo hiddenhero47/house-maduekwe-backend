@@ -537,6 +537,7 @@ const registerAdmin = asyncHandler(async (req, res) => {
     name,
     email,
     password: hashedPassword,
+    verified: true,
     role: ROLE.ADMIN,
   });
 
@@ -589,6 +590,7 @@ const createOAuthUser = async ({
     password: dummyPassword,
     authProviders: [{ provider, providerId }],
     role: ROLE.BASIC,
+    verified: provider === "google" ? true : false,
   });
 };
 
