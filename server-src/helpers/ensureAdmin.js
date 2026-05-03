@@ -17,6 +17,7 @@ const ensureAdminExists = async () => {
         email: process.env.SUPER_ADMIN_EMAIL || "hiddenhero47pro@gmail.com",
         password: hashedPassword,
         role: ROLE.SUPER_ADMIN,
+        verified: true,
       });
 
       return {
