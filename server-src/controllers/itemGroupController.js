@@ -107,7 +107,7 @@ const updateItemGroup = asyncHandler(async (req, res) => {
       throw new Error("One or more shop items do not exist");
     }
 
-    group.shopItems = shopItems;
+    group.shopItems = [...group?.shopItems, shopItems];
   }
 
   await group.save();
