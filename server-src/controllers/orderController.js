@@ -10,7 +10,7 @@ const ORDER_STATUS_FLOW = {
   pending: ["processing", "cancelled"],
   processing: ["shipped", "cancelled", "paid"],
   paid: ["shipped", "processing"],
-  shipped: ["delivered"],
+  shipped: ["delivered", "shipped"],
   delivered: [],
   cancelled: [],
 };
