@@ -9,16 +9,21 @@ const ensureAdminExists = async () => {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(
         process.env.SUPER_ADMIN_PASSWORD || "superadmin123",
-        salt
+        salt,
       );
 
-      const superAdminUser = await User.create({
+      const superAdminUser = new User({
         name: process.env.SUPER_ADMIN_NAME || "hidden hero",
         email: process.env.SUPER_ADMIN_EMAIL || "hiddenhero47pro@gmail.com",
         password: hashedPassword,
         role: ROLE.SUPER_ADMIN,
         verified: true,
       });
+
+      // 🔐 MUST be before save
+      superAdminUser._adminCreation = true;
+
+      await superAdminUser.save();
 
       return {
         task: "Ensure Super Admin",

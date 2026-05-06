@@ -465,8 +465,14 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     user.password = await bcrypt.hash(password, salt);
   }
 
-  if (name) user.name = name;
+  if (phoneNumber && !phoneNumber.number && !phoneNumber.country) {
+    res.status(400);
+    throw new Error("Both phone number and country code are required");
+  }
+
   if (phoneNumber) user.phoneNumber = phoneNumber;
+
+  if (name) user.name = name;
 
   const hasNewAvatar = req.files || req.file || base64 || url;
 
@@ -554,6 +560,139 @@ const registerAdmin = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc Get users (filter by role / id)
+// @route GET /api/users
+// @access Private (SUPER_ADMIN)
+const getUsers = asyncHandler(async (req, res) => {
+  if (req.user.role !== ROLE.SUPER_ADMIN) {
+    res.status(403);
+    throw new Error("Not authorized");
+  }
+
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Number(req.query.limit) || 20, 100);
+  const skip = (page - 1) * limit;
+
+  const { role, userId, startDate, endDate } = req.query;
+
+  const filter = {};
+
+  // 🔎 Filter by role
+  if (role && Object.values(ROLE).includes(role)) {
+    filter.role = role;
+  }
+
+  // 🔎 Filter by userId
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    filter._id = userId;
+  }
+
+  // 📅 Date filtering
+  if (startDate || endDate) {
+    filter.createdAt = {};
+
+    if (startDate) {
+      const start = new Date(startDate);
+      if (!isNaN(start)) {
+        filter.createdAt.$gte = start;
+      }
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      if (!isNaN(end)) {
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+
+    if (Object.keys(filter.createdAt).length === 0) {
+      delete filter.createdAt;
+    }
+  }
+
+  const [users, total] = await Promise.all([
+    User.find(filter)
+      .select("-password") // 🔒 never expose password
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+
+    User.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    data: users,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
+});
+
+// @desc Change user role
+// @route PATCH /api/users/:id/role
+// @access Private (SUPER_ADMIN)
+const changeUserRole = asyncHandler(async (req, res) => {
+  if (req.user.role !== ROLE.SUPER_ADMIN) {
+    res.status(403);
+    throw new Error("Not authorized");
+  }
+
+  const { id } = req.params;
+  const { role } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400);
+    throw new Error("Invalid user id");
+  }
+
+  if (!Object.values(ROLE).includes(role)) {
+    res.status(400);
+    throw new Error("Invalid role");
+  }
+
+  const user = await User.findById(id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // 🔒 Prevent changing own role (optional but smart)
+  if (user._id.toString() === req.user._id.toString()) {
+    res.status(400);
+    throw new Error("You cannot change your own role");
+  }
+
+  // 🔒 Prevent changing SUPER_ADMIN (important)
+  if (user.role === ROLE.SUPER_ADMIN) {
+    res.status(400);
+    throw new Error("Cannot modify Super Admin role");
+  }
+
+  user.role = role;
+
+  // allow admin creation bypass hook
+  if (role === ROLE.ADMIN) {
+    user._adminCreation = true;
+  }
+
+  await user.save();
+
+  res.status(200).json({
+    message: "User role updated successfully",
+    user: {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    },
+  });
+});
+
 // Generate JWT
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -605,4 +744,6 @@ module.exports = {
   updateUserProfile,
   registerAdmin,
   toggle2fa,
+  getUsers,
+  changeUserRole,
 };
