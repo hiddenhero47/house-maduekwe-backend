@@ -11,12 +11,16 @@ const {
   updateUserProfile,
   registerAdmin,
   toggle2fa,
+  getUsers,
+  changeUserRole,
 } = require("../controllers/userController");
 const { protect, secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
 
 router.post("/", registerUser);
 router.post("/admin-create", secureRole(ROLE.SUPER_ADMIN), registerAdmin);
+router.get("/", secureRole(ROLE.SUPER_ADMIN), getUsers);
+router.patch("/:id/role", secureRole(ROLE.SUPER_ADMIN), changeUserRole);
 router.post("/login", loginUser);
 router.get("/2fa/setup", protect, generate2fa);
 router.post("/2fa/verify", protect, verify2fa);

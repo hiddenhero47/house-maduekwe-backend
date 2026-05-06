@@ -116,7 +116,7 @@ userSchema.pre("save", async function (next) {
         role: ROLE.SUPER_ADMIN,
       });
 
-      if (existingSuperAdmin) {
+      if (existingSuperAdmin || !this._adminCreation) {
         const error = new Error("Only one Super Admin can exist in the system");
         error.status = 403;
         return next(error);
