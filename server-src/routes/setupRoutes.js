@@ -12,7 +12,7 @@ router.post(
 
 router.post(
   "/clear-cart",
-  timeWindowGuard("2026-05-08T00:00:00Z", 24),
+  timeWindowGuard("2026-05-09T00:00:00Z", 24),
   clearCart,
 );
 

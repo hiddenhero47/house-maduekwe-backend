@@ -72,8 +72,12 @@ const getCart = asyncHandler(async (req, res) => {
 
       // 🔁 Keep STRICT CART SHAPE (VERY IMPORTANT)
       const normalizedAttr = {
-        ...latestAttr,
         Attribute: attrId, // 🔥 force ID, not object
+        type: latestAttr.type,
+        isDefault: latestAttr.isDefault,
+        quantity: latestAttr.quantity,
+        additionalAmount: latestAttr.additionalAmount,
+        images: latestAttr.images,
       };
 
       newSelectedAttributes.push(normalizedAttr);
@@ -94,6 +98,8 @@ const getCart = asyncHandler(async (req, res) => {
 
     item.selectedAttributes = newSelectedAttributes;
     newItemList.push(item);
+
+    console.log(item, "item after attr check");
   }
 
   // replace cart items
