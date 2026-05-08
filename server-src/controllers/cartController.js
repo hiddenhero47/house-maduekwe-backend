@@ -82,6 +82,9 @@ const getCart = asyncHandler(async (req, res) => {
       if (!updated && hasChanged(oldAttr, normalizedAttr)) {
         updated = true;
       }
+
+      console.log(oldAttr, "oldAttr");
+      console.log(normalizedAttr, "normalizedAttr");
     }
 
     if (hasInvalidAttribute) {
@@ -97,6 +100,8 @@ const getCart = asyncHandler(async (req, res) => {
   if (newItemList.length !== cart.itemList.length) {
     updated = true;
   }
+
+  console.log(newItemList, "newItemList");
 
   cart.itemList = newItemList;
 
@@ -155,6 +160,8 @@ const addToCart = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(failed.message);
   }
+
+  console.log(validatedItems);
 
   // ✅ Find cart
   let cart = await Cart.findOne({ user: req.user._id });
