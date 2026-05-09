@@ -116,6 +116,11 @@ const getCart = asyncHandler(async (req, res) => {
     await cart.save();
   }
 
+  await cart.populate({
+    path: "itemList.selectedAttributes.Attribute",
+    select: "name value type display",
+  });
+
   res.json(cart);
 });
 
