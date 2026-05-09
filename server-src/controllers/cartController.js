@@ -13,113 +13,103 @@ const { validateStockStateful } = require("./checkoutController");
 // @route   GET /api/cart
 // @access  Private
 const getCart = asyncHandler(async (req, res) => {
-  let cart = await Cart.findOne({ user: req.user._id }).populate({
-    path: "itemList.shopItem",
-    populate: [
-      { path: "category", select: "name" },
-      {
-        path: "attributes.Attribute",
-        select: "name value type display",
-      },
-    ],
-  });
+  const cart = await Cart.findOne({ user: req.user._id }).populate([
+    {
+      path: "itemList.shopItem",
+      populate: [
+        { path: "category", select: "name" },
+        {
+          path: "attributes.Attribute",
+          select: "name value type display",
+        },
+      ],
+    },
+    {
+      path: "itemList.selectedAttributes.Attribute",
+      select: "name value type display",
+    },
+  ]);
 
   if (!cart) {
-    return res.json({ message: "Cart is empty", itemList: [] });
+    return res.json({
+      message: "Cart is empty",
+      itemList: [],
+    });
   }
 
-  // 🔥 Remove items whose ShopItem no longer exists
-  const originalLength = cart.itemList.length;
-  cart.itemList = cart.itemList.filter((item) => item.shopItem);
-
   let updated = false;
-  const newItemList = [];
+
+  const cleanedItems = [];
 
   for (const item of cart.itemList) {
-    if (!item.selectedAttributes?.length) {
-      newItemList.push(item);
+    // ❌ Product removed
+    if (!item.shopItem) {
+      updated = true;
       continue;
     }
 
-    // ✅ Map current product attributes (latest state)
-    const productAttrMap = new Map(
-      item.shopItem.attributes
-        .map((attr) => {
-          const id = getAttrId(attr);
-          return id ? [id, attr] : null;
-        })
-        .filter(Boolean),
+    // ✅ No selected attrs
+    if (!item.selectedAttributes?.length) {
+      cleanedItems.push(item);
+      continue;
+    }
+
+    // ✅ Build fast lookup map
+    const attrMap = new Map(
+      item.shopItem.attributes.map((attr) => [getAttrId(attr), attr]),
     );
 
-    let hasInvalidAttribute = false;
-    const newSelectedAttributes = [];
+    const normalizedSelected = [];
+
+    let invalid = false;
 
     for (const oldAttr of item.selectedAttributes) {
       const attrId = getAttrId(oldAttr);
 
-      if (!attrId) {
-        hasInvalidAttribute = true;
+      const latestAttr = attrMap.get(attrId);
+
+      // ❌ Attribute removed
+      if (!attrId || !latestAttr) {
+        invalid = true;
+        updated = true;
         break;
       }
 
-      const latestAttr = productAttrMap.get(attrId);
-
-      // ❌ Attribute removed from product
-      if (!latestAttr) {
-        hasInvalidAttribute = true;
-        break;
-      }
-
-      // 🔁 Keep STRICT CART SHAPE (VERY IMPORTANT)
       const normalizedAttr = {
-        Attribute: attrId, // 🔥 force ID, not object
+        Attribute: attrId,
         type: latestAttr.type,
         isDefault: latestAttr.isDefault,
         quantity: latestAttr.quantity,
         additionalAmount: latestAttr.additionalAmount,
-        images: latestAttr.images,
+        images: latestAttr.images || [],
       };
 
-      newSelectedAttributes.push(normalizedAttr);
+      normalizedSelected.push(normalizedAttr);
 
-      // 🔍 Detect changes
       if (!updated && hasChanged(oldAttr, normalizedAttr)) {
         updated = true;
       }
-
-      console.log(oldAttr, "oldAttr");
-      console.log(normalizedAttr, "normalizedAttr");
     }
 
-    if (hasInvalidAttribute) {
-      updated = true;
-      continue; // 🚨 remove item
-    }
+    if (invalid) continue;
 
-    item.selectedAttributes = newSelectedAttributes;
-    newItemList.push(item);
-
-    console.log(item, "item after attr check");
+    cleanedItems.push({
+      ...item.toObject(),
+      selectedAttributes: normalizedSelected,
+    });
   }
 
-  // replace cart items
-  if (newItemList.length !== cart.itemList.length) {
-    updated = true;
-  }
-
-  console.log(newItemList, "newItemList");
-
-  cart.itemList = newItemList;
-
-  // Only save if something was removed
-  if (cart.itemList.length !== originalLength || updated) {
+  // ✅ Save only if needed
+  if (updated || cleanedItems.length !== cart.itemList.length) {
+    cart.itemList = cleanedItems;
     await cart.save();
-  }
 
-  await cart.populate({
-    path: "itemList.selectedAttributes.Attribute",
-    select: "name value type display",
-  });
+    // re-populate after save because IDs were normalized
+    await cart.populate({
+      path: "itemList.selectedAttributes.Attribute",
+      select: "name value type display",
+    });
+  }
 
   res.json(cart);
 });
