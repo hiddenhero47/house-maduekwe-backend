@@ -71,7 +71,7 @@ const getPayments = asyncHandler(async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 20, 100);
   const skip = (page - 1) * limit;
 
-  const { status, user, orderId, providerId, reference, startDate, endDate } =
+  const { status, user, orderId, provider, reference, startDate, endDate } =
     req.query;
 
   const filter = {};
@@ -88,8 +88,8 @@ const getPayments = asyncHandler(async (req, res) => {
     filter.orderId = orderId;
   }
 
-  if (providerId && mongoose.Types.ObjectId.isValid(providerId)) {
-    filter["provider.id"] = providerId;
+  if (provider) {
+    filter.provider = provider;
   }
 
   if (reference) {
@@ -141,6 +141,9 @@ const getPayments = asyncHandler(async (req, res) => {
 // @route POST /api/payment/:provider/callback
 // @access Private
 const processStripeEvent = async (req, res) => {
+  // ✅ ACKNOWLEDGE STRIPE IMMEDIATELY
+  res.sendStatus(200);
+
   const { event } = req.webhook;
 
   if (event.type !== "payment_intent.succeeded") return;
@@ -159,7 +162,7 @@ const processStripeEvent = async (req, res) => {
   // 🔐 Idempotency
   if (payment.status === PAYMENT_STATUS.SUCCESS && payment.provider) {
     if (
-      payment.provider.name === intent.metadata.providerName &&
+      payment.provider === intent.metadata.providerName &&
       payment.reference === intent.id
     ) {
       return;
