@@ -345,7 +345,12 @@ const googleLogin = asyncHandler(async (req, res) => {
     _id: user.id,
     name: user.name,
     email: user.email,
+    phoneNumber: user.phoneNumber,
+    avatar: user.avatar,
     role: user.role,
+    user2fa: {
+      enable: user.user2fa?.enable || false,
+    },
     token: generateToken(user._id),
   });
 });
@@ -432,7 +437,12 @@ const appleLogin = asyncHandler(async (req, res) => {
     _id: user.id,
     name: user.name,
     email: user.email,
+    phoneNumber: user.phoneNumber,
+    avatar: user.avatar,
     role: user.role,
+    user2fa: {
+      enable: user.user2fa?.enable || false,
+    },
     token: generateToken(user._id),
   });
 });
