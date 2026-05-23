@@ -8,16 +8,11 @@ const connectDB = require("./config/db");
 const port = process.env.PORT || 4000;
 const path = require("path");
 const handleCors = require("./middleware/corsMiddleware");
+const sendEmail = require("./helpers/emailSender");
 
 connectDB();
 
 const app = express();
-
-// logger first
-// app.use((req, res, next) => {
-//   console.log(`Incoming request: ${req.method} ${req.url}`);
-//   next();
-// });
 
 const publicPath = path.join(__dirname, "public");
 
@@ -57,6 +52,20 @@ app.use(handleCors);
 app.get("/api/test", (req, res) => {
   console.log("Test route hit!");
   res.json({ message: "Hello from backend!" });
+});
+
+app.get("/api/test-email", async (req, res) => {
+  try {
+    const result = await sendEmail({
+      to: "hiddenhero47pro@gmail.com",
+      subject: "Mailgun Test",
+      html: "<h1>Email works 🎉</h1>",
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json(err);
+  }
 });
 
 app.use("/api/setup", require("./routes/setupRoutes"));
