@@ -8,83 +8,101 @@ const connectDB = require("./config/db");
 const port = process.env.PORT || 4000;
 const path = require("path");
 const handleCors = require("./middleware/corsMiddleware");
-const sendEmail = require("./helpers/emailSender");
+const { sendTemplatedEmail, loadTemplates } = require("./helpers/emailSender");
 
-connectDB();
-
-const app = express();
-
-const publicPath = path.join(__dirname, "public");
-
-//middleware for body parser
-app.use(
-  "/api/payment/stripe/callback",
-  express.raw({ type: "application/json" })
-);
-const forms = multer();
-app.use(express.json({ limit: '3mb' }));
-app.use(forms.any());
-app.use(express.urlencoded({ extended: false, limit: '3mb' }));
-
-// Declaring Static Folder
-app.use(express.static(path.join(__dirname, "public")));
-app.use(
-  "/public",
-  express.static(publicPath, {
-    index: false, // prevent directory listing
-    dotfiles: "ignore", // ignore .env, .gitignore if misplaced
-    setHeaders: (res, filePath) => {
-      // Optional security headers
-      res.set("X-Content-Type-Options", "nosniff");
-      const ext = path.extname(filePath).toLowerCase();
-      if (ext === ".js" || ext === ".html") {
-        res.setHeader("Content-Disposition", "attachment");
-        res.setHeader("Content-Type", "text/plain");
-      }
-    },
-  })
-);
-
-//middleware cors
-app.use(handleCors);
-
-// test route
-app.get("/api/test", (req, res) => {
-  console.log("Test route hit!");
-  res.json({ message: "Hello from backend!" });
-});
-
-app.get("/api/test-email", async (req, res) => {
+const startServer = async () => {
   try {
-    const result = await sendEmail({
-      to: "hiddenhero47pro@gmail.com",
-      subject: "Mailgun Test",
-      html: "<h1>Email works 🎉</h1>",
+    await connectDB();
+
+    await loadTemplates();
+
+    const app = express();
+
+    const publicPath = path.join(__dirname, "public");
+
+    //middleware for body parser
+    app.use(
+      "/api/payment/stripe/callback",
+      express.raw({ type: "application/json" }),
+    );
+    const forms = multer();
+    app.use(express.json({ limit: "3mb" }));
+    app.use(forms.any());
+    app.use(express.urlencoded({ extended: false, limit: "3mb" }));
+
+    // Declaring Static Folder
+    app.use(express.static(path.join(__dirname, "public")));
+    app.use(
+      "/public",
+      express.static(publicPath, {
+        index: false, // prevent directory listing
+        dotfiles: "ignore", // ignore .env, .gitignore if misplaced
+        setHeaders: (res, filePath) => {
+          // Optional security headers
+          res.set("X-Content-Type-Options", "nosniff");
+          const ext = path.extname(filePath).toLowerCase();
+          if (ext === ".js" || ext === ".html") {
+            res.setHeader("Content-Disposition", "attachment");
+            res.setHeader("Content-Type", "text/plain");
+          }
+        },
+      }),
+    );
+
+    //middleware cors
+    app.use(handleCors);
+
+    // test route
+    app.get("/api/test", (req, res) => {
+      console.log("Test route hit!");
+      res.json({ message: "Hello from backend!" });
     });
 
-    res.json(result);
-  } catch (err) {
-    res.status(500).json(err);
+    app.get("/api/test-email", async (req, res) => {
+      try {
+        const result = await sendTemplatedEmail({
+          to: "hiddenhero47pro@gmail.com",
+          subject: "Testing Email Templates",
+          template: "test",
+          variables: {
+            name: "Charles",
+            amount: 30000,
+            orderId: "ORD-847392",
+            email: "hiddenhero47pro@gmail.com",
+          },
+        });
+
+        res.json(result);
+      } catch (err) {
+        res.status(500).json(err);
+      }
+    });
+
+    app.use("/api/setup", require("./routes/setupRoutes"));
+    app.use("/api/users", require("./routes/userRoutes"));
+    app.use("/api/addresses", require("./routes/addressRoutes"));
+    app.use("/api/attributes", require("./routes/attributeRoutes"));
+    app.use("/api/categories", require("./routes/categoryRoutes"));
+    app.use("/api/shop-items", require("./routes/shopItemRoutes"));
+    app.use("/api/cart", require("./routes/cartRoutes"));
+    app.use("/api/item-groups", require("./routes/itemGroupRoutes"));
+    app.use("/api/reviews", require("./routes/reviewRoutes"));
+    app.use("/api/export-fees", require("./routes/exportFeeRoutes"));
+    app.use(
+      "/api/payment-providers",
+      require("./routes/paymentProviderRoutes"),
+    );
+    app.use("/api/orders", require("./routes/orderRoutes"));
+    app.use("/api/payment", require("./routes/paymentRoutes"));
+
+    app.use(errorHandler);
+
+    app.listen(port, () => console.log(`🚀 Server started on port ${port}`));
+  } catch (error) {
+    console.error("Startup failed:", error.message);
+
+    process.exit(1);
   }
-});
+};
 
-app.use("/api/setup", require("./routes/setupRoutes"));
-app.use("/api/users", require("./routes/userRoutes"));
-app.use("/api/addresses", require("./routes/addressRoutes"));
-app.use("/api/attributes", require("./routes/attributeRoutes"));
-app.use("/api/categories", require("./routes/categoryRoutes"));
-app.use("/api/shop-items", require("./routes/shopItemRoutes"));
-app.use("/api/cart", require("./routes/cartRoutes"));
-app.use("/api/item-groups", require("./routes/itemGroupRoutes"));
-app.use("/api/reviews", require("./routes/reviewRoutes"));
-app.use("/api/export-fees", require("./routes/exportFeeRoutes"));
-app.use("/api/payment-providers", require("./routes/paymentProviderRoutes"));
-app.use("/api/orders", require("./routes/orderRoutes"));
-app.use("/api/payment", require("./routes/paymentRoutes"));
-
-app.use(errorHandler);
-
-app.listen(port, () => 
-  console.log(`🚀 Server started on port ${port}`)
-);
-
+startServer();
