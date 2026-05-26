@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const { Order, ORDER_STATUS } = require("../models/orderModel");
 const stripe = require("../config/stripe");
+const { sendTemplatedEmail } = require("../helpers/emailSender");
 
 // @desc Get logged-in user's payments
 // @route GET /api/payments/me
@@ -194,6 +195,22 @@ const processStripeEvent = async (req, res) => {
     { _id: payment.orderId },
     { status: ORDER_STATUS.PAID },
   );
+
+  if (order && payment.userEmail && payment.status === PAYMENT_STATUS.SUCCESS) {
+    await sendTemplatedEmail({
+      to: payment.userEmail,
+      subject: "Order Confirmed 🎉",
+      template: "orderConfirmation",
+      variables: {
+        name: order.user.email,
+        orderId: order._id,
+        paymentRef: payment.reference,
+        amount: payment.amountToPay,
+        currency: payment.currency,
+        orderUrl: `https://housemaduekwe.com/settings?currentSettings=orders&orderId=${order._id}`,
+      },
+    });
+  }
 };
 
 // @desc Create Stripe payment intent
