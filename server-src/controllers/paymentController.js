@@ -196,6 +196,8 @@ const processStripeEvent = async (req, res) => {
     { status: ORDER_STATUS.PAID },
   );
 
+  const order = await Order.findById(payment.orderId).lean();
+
   if (order && payment.userEmail && payment.status === PAYMENT_STATUS.SUCCESS) {
     await sendTemplatedEmail({
       to: payment.userEmail,
