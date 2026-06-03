@@ -21,7 +21,7 @@ const protect = asyncHandler(async (req, res, next) => {
 
       if (!user) {
         res.status(401);
-        throw new Error("Not authorized");
+        throw new Error("Not authorized - user not found");
       }
 
       // 🔐 SESSION VALIDATION (IMPORTANT ADDITION)
@@ -36,7 +36,7 @@ const protect = asyncHandler(async (req, res, next) => {
     } catch (error) {
       console.log(error);
       res.status(401);
-      throw new Error("Not authorized");
+      throw new Error("Not authorized token failed");
     }
   }
   if (!token) {
