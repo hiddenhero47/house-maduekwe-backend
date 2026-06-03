@@ -872,6 +872,18 @@ const resetPassword = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc invalidate user tokens
+// @route PATCH /api/users/invalidate
+// @access Private
+const logoutAll = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id);
+
+  user.sessionId = crypto.randomUUID(); // 🔥 kill all tokens
+  await user.save();
+
+  res.json({ message: "Logged out from all devices" });
+});
+
 // Generate JWT
 const generateToken = (user) => {
   return jwt.sign(
@@ -932,4 +944,5 @@ module.exports = {
   changeUserRole,
   requestReset,
   resetPassword,
+  logoutAll,
 };
