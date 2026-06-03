@@ -249,6 +249,26 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   await order.save();
 
+  if (
+    status === ORDER_STATUS.SHIPPED &&
+    order.userEmail &&
+    order.shippingDetails
+  ) {
+    await sendTemplatedEmail({
+      to: order.userEmail,
+      subject: "Your Order Has Been Shipped 📦",
+      template: "orderShipped",
+      variables: {
+        name: order.userEmail,
+        orderId: order._id,
+        company: order.shippingDetails.company,
+        trackingNumber: order.shippingDetails.trackingNumber,
+        year: new Date().getFullYear(),
+        orderUrl: `${process.env.FRONTEND_URL}/settings?currentSettings=orders&orderId=${order._id}`,
+      },
+    });
+  }
+
   res.status(200).json({
     message: "Order status updated",
     order,
@@ -274,8 +294,7 @@ const cancelOrder = asyncHandler(async (req, res) => {
     // 🔐 AUTHORIZATION
     const isOwner = order.user.toString() === req.user._id.toString();
     const isAdmin =
-      req.user.role === ROLE.ADMIN ||
-      req.user.role === ROLE.SUPER_ADMIN;
+      req.user.role === ROLE.ADMIN || req.user.role === ROLE.SUPER_ADMIN;
 
     if (!isOwner && !isAdmin) {
       res.status(403);

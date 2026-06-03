@@ -34,7 +34,9 @@ handlebars.registerHelper("year", () => new Date().getFullYear());
 const templateRegistry = {
   test: "../emails/test.html",
   orderConfirmation: "../emails/order-confirmation.html",
-  // resetPassword: "../emails/reset-password.html",
+  newPaidOrder: "../emails/new-paid-order.html",
+  orderShipped: "../emails/order-shipped.html",
+  forgotPassword: "../emails/forgot-password.html",
 };
 
 /*

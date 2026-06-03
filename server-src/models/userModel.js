@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const ROLE = {
   SUPER_ADMIN: "superAdmin",
@@ -93,6 +94,10 @@ const userSchema = mongoose.Schema(
       of: tokenEntrySchema,
       default: {},
     },
+    sessionId: {
+      type: String,
+      default: () => crypto.randomUUID(),
+    },
   },
   {
     timestamps: true,
@@ -100,6 +105,15 @@ const userSchema = mongoose.Schema(
 );
 
 userSchema.virtual("currentUserRole");
+
+userSchema.index({ email: 1 }, { unique: true });
+
+userSchema.index({
+  "authProviders.provider": 1,
+  "authProviders.providerId": 1,
+});
+
+userSchema.index({ sessionId: 1 });
 
 userSchema.pre("save", async function (next) {
   const User = mongoose.model("User"); // Get the User model

@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const asyncHandler = require("express-async-handler");
-const { User, ROLE } = require("../models/userModel");
+const { User, ROLE, TOKENS } = require("../models/userModel");
 const { authenticator } = require("otplib");
 const qrcode = require("qrcode");
 const {
@@ -11,6 +11,8 @@ const {
   updateFile,
 } = require("../helpers/fileManager");
 const validateAvatar = require("../validations/userFileValidation");
+const { sendTemplatedEmail } = require("../helpers/emailSender");
+const crypto = require("crypto");
 
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -45,6 +47,7 @@ const registerUser = asyncHandler(async (req, res) => {
     name,
     email,
     password: hashedPassword,
+    sessionId: crypto.randomUUID(),
     role: ROLE.BASIC,
   });
 
@@ -59,7 +62,7 @@ const registerUser = asyncHandler(async (req, res) => {
       user2fa: {
         enable: user.user2fa?.enable || false,
       },
-      token: generateToken(user._id),
+      token: generateToken(user),
     });
   } else {
     res.status(400);
@@ -97,6 +100,12 @@ const loginUser = asyncHandler(async (req, res) => {
       }
     }
 
+    // Backward compatibility for old users
+    if (!user.sessionId) {
+      user.sessionId = crypto.randomUUID();
+      await user.save();
+    }
+
     res.json({
       _id: user.id,
       name: user.name,
@@ -107,7 +116,7 @@ const loginUser = asyncHandler(async (req, res) => {
       user2fa: {
         enable: user.user2fa?.enable || false,
       },
-      token: generateToken(user._id),
+      token: generateToken(user),
     });
   } else {
     res.status(400);
@@ -341,6 +350,12 @@ const googleLogin = asyncHandler(async (req, res) => {
     }
   }
 
+  // Backward compatibility for existing users
+  if (!user.sessionId) {
+    user.sessionId = crypto.randomUUID();
+    await user.save();
+  }
+
   res.json({
     _id: user.id,
     name: user.name,
@@ -351,7 +366,7 @@ const googleLogin = asyncHandler(async (req, res) => {
     user2fa: {
       enable: user.user2fa?.enable || false,
     },
-    token: generateToken(user._id),
+    token: generateToken(user),
   });
 });
 
@@ -433,6 +448,12 @@ const appleLogin = asyncHandler(async (req, res) => {
     }
   }
 
+  // Backward compatibility for existing users
+  if (!user.sessionId) {
+    user.sessionId = crypto.randomUUID();
+    await user.save();
+  }
+
   res.json({
     _id: user.id,
     name: user.name,
@@ -443,7 +464,7 @@ const appleLogin = asyncHandler(async (req, res) => {
     user2fa: {
       enable: user.user2fa?.enable || false,
     },
-    token: generateToken(user._id),
+    token: generateToken(user),
   });
 });
 
@@ -704,11 +725,162 @@ const changeUserRole = asyncHandler(async (req, res) => {
   });
 });
 
-// Generate JWT
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: "1d",
+// @desc Request password reset
+// @route POST /api/users/request-reset
+// @access Public
+const requestReset = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    res.status(400);
+    throw new Error("Email is required");
+  }
+
+  const user = await User.findOne({
+    email: email.toLowerCase().trim(),
   });
+
+  // 🔒 Never reveal if user exists
+  if (!user) {
+    return res.status(200).json({
+      message:
+        "If an account exists with that email, a password reset link has been sent.",
+    });
+  }
+
+  const existingToken = user.tokenCache?.get(TOKENS.RESET);
+
+  // Reuse existing token if still valid
+  let code;
+  let expiresAt;
+
+  if (
+    existingToken &&
+    existingToken.expiresAt &&
+    existingToken.expiresAt > new Date()
+  ) {
+    code = existingToken.code;
+    expiresAt = existingToken.expiresAt;
+  } else {
+    code = crypto.randomUUID();
+
+    expiresAt = new Date(
+      Date.now() + 10 * 60 * 1000, // 10 mins
+    );
+
+    user.tokenCache.set(TOKENS.RESET, {
+      code,
+      expiresAt,
+    });
+
+    await user.save();
+  }
+
+  const token = jwt.sign(
+    {
+      email: user.email,
+      code,
+    },
+    process.env.JWT_EMAIL_SECRET,
+    {
+      expiresIn: "10m",
+    },
+  );
+
+  const resetUrl = `${process.env.FRONTEND_URL}/authentication/reset-password/${token}`;
+
+  await sendTemplatedEmail({
+    to: user.email,
+    subject: "Reset Your Password",
+    template: "forgotPassword",
+    variables: {
+      name: user.name,
+      resetUrl,
+      expiresIn: "10 minutes",
+    },
+  });
+
+  return res.status(200).json({
+    message:
+      "If an account exists with that email, a password reset link has been sent.",
+  });
+});
+
+// @desc Reset password
+// @route POST /api/users/reset-password
+// @access Public
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  if (!token || !password) {
+    res.status(400);
+    throw new Error("Token and password are required");
+  }
+
+  let decoded;
+
+  try {
+    decoded = jwt.verify(token, process.env.JWT_EMAIL_SECRET);
+  } catch {
+    res.status(400);
+    throw new Error("Invalid or expired reset token");
+  }
+
+  const { email, code } = decoded;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    res.status(400);
+    throw new Error("Invalid or expired reset token");
+  }
+
+  const resetToken = user.tokenCache?.get(TOKENS.RESET);
+
+  if (!resetToken) {
+    res.status(400);
+    throw new Error("Invalid or expired reset token");
+  }
+
+  if (resetToken.code !== code) {
+    res.status(400);
+    throw new Error("Invalid or expired reset token");
+  }
+
+  if (resetToken.expiresAt < new Date()) {
+    user.tokenCache.delete(TOKENS.RESET);
+    await user.save();
+
+    res.status(400);
+    throw new Error("Reset token has expired");
+  }
+
+  // 🔐 Hash new password
+  const salt = await bcrypt.genSalt(10);
+  user.password = await bcrypt.hash(password, salt);
+
+  // 🚨 CRITICAL: invalidate ALL sessions
+  user.sessionId = crypto.randomUUID();
+
+  // 🧹 remove reset token
+  user.tokenCache.delete(TOKENS.RESET);
+
+  await user.save();
+
+  res.status(200).json({
+    message: "Password reset successfully",
+  });
+});
+
+// Generate JWT
+const generateToken = (user) => {
+  return jwt.sign(
+    { id: user._id, sessionId: user.sessionId },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "1d",
+    },
+  );
 };
 
 // Create OAuth User Safely
@@ -739,6 +911,7 @@ const createOAuthUser = async ({
     avatar: avatar || undefined,
     password: dummyPassword,
     authProviders: [{ provider, providerId }],
+    sessionId: crypto.randomUUID(),
     role: ROLE.BASIC,
     verified: provider === "google" ? true : false,
   });
@@ -757,4 +930,6 @@ module.exports = {
   toggle2fa,
   getUsers,
   changeUserRole,
+  requestReset,
+  resetPassword,
 };
