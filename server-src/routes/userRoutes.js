@@ -13,6 +13,9 @@ const {
   toggle2fa,
   getUsers,
   changeUserRole,
+  requestReset,
+  resetPassword,
+  logoutAll,
 } = require("../controllers/userController");
 const { protect, secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
@@ -29,5 +32,8 @@ router.post("/social/google", googleLogin);
 router.post("/social/apple", appleLogin);
 router.put("/profile", protect, updateUserProfile);
 router.put("/2fa/toggle", protect, toggle2fa);
+router.post("/request-reset", requestReset);
+router.post("/reset-password", resetPassword);
+router.patch("/invalidate", protect, logoutAll);
 
 module.exports = router;

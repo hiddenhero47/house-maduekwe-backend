@@ -42,15 +42,14 @@
             <!-- HEADER -->
             <tr>
               <td>
-                <h2 style="margin: 0; color: #000">🎉 Order Confirmed</h2>
-
+                <h2 style="margin: 0; color: #000">
+                  💰 New Paid Order Received
+                </h2>
                 <p style="color: #6f6f6f; font-size: 14px; margin-top: 8px">
-                  Hi {{uppercase name}}, your order has been successfully
-                  received and payment confirmed.
+                  A customer has successfully completed payment for an order.
                 </p>
               </td>
             </tr>
-
             <tr>
               <td>
                 <hr
@@ -62,23 +61,19 @@
                 />
               </td>
             </tr>
-
-            <!-- ORDER INFO -->
+            <!-- DETAILS -->
             <tr>
-              <td style="color: #000; font-size: 14px">
+              <td style="font-size: 14px; color: #000">
                 <p><strong>Order ID:</strong> {{orderId}}</p>
-
+                <p><strong>Customer Email:</strong> {{customerEmail}}</p>
                 <p><strong>Payment Reference:</strong> {{paymentRef}}</p>
-
-                <p><strong>Total Paid:</strong> {{amount}} {{currency}}</p>
-
+                <p><strong>Amount Paid:</strong> {{amount}} {{currency}}</p>
                 <p>
                   <strong>Status:</strong>
                   <span style="color: #308242; font-weight: bold"> PAID </span>
                 </p>
               </td>
             </tr>
-
             <!-- CTA -->
             <tr>
               <td style="padding-top: 20px">
@@ -94,18 +89,14 @@
                     font-size: 14px;
                   "
                 >
-                  View Your Order
+                  View Order
                 </a>
               </td>
             </tr>
-
             <!-- FOOTER -->
             <tr>
               <td style="padding-top: 30px; color: #999; font-size: 12px">
-                If you have any questions, reply to this email or contact
-                support.
-                <br /><br />
-                © {{year}} House Maduekwe
+                This notification was generated automatically by House Maduekwe.
               </td>
             </tr>
           </table>

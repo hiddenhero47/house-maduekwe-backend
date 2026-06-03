@@ -17,7 +17,20 @@ const protect = asyncHandler(async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Get user from the token
-      req.user = await User.findById(decoded.id).select("-password");
+      const user = await User.findById(decoded.id).select("-password");
+
+      if (!user) {
+        res.status(401);
+        throw new Error("Not authorized");
+      }
+
+      // 🔐 SESSION VALIDATION (IMPORTANT ADDITION)
+      if (decoded.sessionId !== user.sessionId) {
+        res.status(401);
+        throw new Error("Session expired. Please login again.");
+      }
+
+      req.user = user;
 
       next();
     } catch (error) {
@@ -49,6 +62,17 @@ const secureRole = (roles) =>
 
         // Get user from the token
         const user = await User.findById(decoded.id).select("-password");
+
+        if (!user) {
+          res.status(401);
+          throw new Error("Not authorized");
+        }
+
+        // 🔐 SESSION VALIDATION (IMPORTANT ADDITION)
+        if (decoded.sessionId !== user.sessionId) {
+          res.status(401);
+          throw new Error("Session expired. Please login again.");
+        }
 
         const allowedRoles = Array.isArray(roles) ? roles : [roles];
 

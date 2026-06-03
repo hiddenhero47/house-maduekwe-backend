@@ -198,18 +198,36 @@ const processStripeEvent = async (req, res) => {
 
   const order = await Order.findById(payment.orderId).lean();
 
-  if (order && payment.userEmail && payment.status === PAYMENT_STATUS.SUCCESS) {
+  if (order && payment.status === PAYMENT_STATUS.SUCCESS) {
+    // Customer email
+    if (payment.userEmail) {
+      await sendTemplatedEmail({
+        to: payment.userEmail,
+        subject: "Order Confirmed 🎉",
+        template: "orderConfirmation",
+        variables: {
+          name: order.user.email,
+          orderId: order._id,
+          paymentRef: payment.reference,
+          amount: payment.amountToPay,
+          currency: payment.currency,
+          orderUrl: `${process.env.FRONTEND_URL}/settings?currentSettings=orders&orderId=${order._id}`,
+        },
+      });
+    }
+
+    // Admin email
     await sendTemplatedEmail({
-      to: payment.userEmail,
-      subject: "Order Confirmed 🎉",
-      template: "orderConfirmation",
+      to: "support.housemaduekwe@gmail.com",
+      subject: "💰 New Paid Order Received",
+      template: "newPaidOrder",
       variables: {
-        name: order.user.email,
+        customerEmail: order.user.email,
         orderId: order._id,
         paymentRef: payment.reference,
         amount: payment.amountToPay,
         currency: payment.currency,
-        orderUrl: `https://housemaduekwe.com/settings?currentSettings=orders&orderId=${order._id}`,
+        orderUrl: `${process.env.FRONTEND_URL}/admin/orders/${order._id}`,
       },
     });
   }

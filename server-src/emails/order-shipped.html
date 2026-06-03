@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Order Confirmation</title>
+    <title>Order Shipped</title>
   </head>
 
   <body
@@ -20,33 +20,26 @@
             width="600"
             style="background: #ffffff; border-radius: 10px; padding: 30px"
           >
-            <!-- LOGO -->
+            <!-- HEADER -->
             <tr>
-              <td
-                align="center"
-                style="background: #000; padding: 24px; border-radius: 8px"
-              >
+              <td align="center" style="padding-bottom: 20px">
                 <img
                   src="https://housemaduekwe.com/app-logo.svg"
                   alt="House Maduekwe"
-                  width="240"
+                  width="180"
                   style="display: block"
                 />
               </td>
             </tr>
 
             <tr>
-              <td style="height: 24px"></td>
-            </tr>
-
-            <!-- HEADER -->
-            <tr>
               <td>
-                <h2 style="margin: 0; color: #000">🎉 Order Confirmed</h2>
+                <h2 style="margin: 0; color: #000">
+                  📦 Your Order Has Been Shipped
+                </h2>
 
                 <p style="color: #6f6f6f; font-size: 14px; margin-top: 8px">
-                  Hi {{uppercase name}}, your order has been successfully
-                  received and payment confirmed.
+                  Hi {{name}}, your order is now on its way.
                 </p>
               </td>
             </tr>
@@ -63,23 +56,26 @@
               </td>
             </tr>
 
-            <!-- ORDER INFO -->
+            <!-- SHIPPING INFO -->
+
             <tr>
-              <td style="color: #000; font-size: 14px">
+              <td style="font-size: 14px; color: #000">
                 <p><strong>Order ID:</strong> {{orderId}}</p>
 
-                <p><strong>Payment Reference:</strong> {{paymentRef}}</p>
-
-                <p><strong>Total Paid:</strong> {{amount}} {{currency}}</p>
+                <p>
+                  <strong>Shipping Company:</strong>
+                  {{company}}
+                </p>
 
                 <p>
-                  <strong>Status:</strong>
-                  <span style="color: #308242; font-weight: bold"> PAID </span>
+                  <strong>Tracking Number:</strong>
+                  {{trackingNumber}}
                 </p>
               </td>
             </tr>
 
             <!-- CTA -->
+
             <tr>
               <td style="padding-top: 20px">
                 <a
@@ -94,16 +90,16 @@
                     font-size: 14px;
                   "
                 >
-                  View Your Order
+                  Track Your Order
                 </a>
               </td>
             </tr>
 
             <!-- FOOTER -->
+
             <tr>
               <td style="padding-top: 30px; color: #999; font-size: 12px">
-                If you have any questions, reply to this email or contact
-                support.
+                Thank you for shopping with House Maduekwe.
                 <br /><br />
                 © {{year}} House Maduekwe
               </td>
