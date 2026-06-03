@@ -5,6 +5,8 @@ const {
 } = require("../helpers/appSetup");
 const Cart = require("../models/cartModel");
 const asyncHandler = require("express-async-handler");
+const { User } = require("../models/userModel");
+const crypto = require("crypto");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -51,4 +53,55 @@ const clearCart = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { runSetupScripts, clearCart };
+// @desc    Migrate users to add sessionId
+// @route   POST /api/setup/migrate-session-id
+// @access  Private (Admin)
+const migrateSessionId = async (req, res) => {
+  const logs = [];
+
+  const usersWithoutSession = await User.find({
+    $or: [
+      { sessionId: { $exists: false } },
+      { sessionId: null },
+      { sessionId: "" },
+    ],
+  });
+
+  if (!usersWithoutSession.length) {
+    return res.json({
+      success: true,
+      message: "All users already have sessionId",
+      updated: 0,
+      results: logs,
+    });
+  }
+
+  const bulkOps = usersWithoutSession.map((user) => {
+    logs.push(`Updating user: ${user._id}`);
+
+    return {
+      updateOne: {
+        filter: { _id: user._id },
+        update: {
+          $set: {
+            sessionId: crypto.randomUUID(),
+          },
+        },
+      },
+    };
+  });
+
+  await User.bulkWrite(bulkOps);
+
+  logs.push(`Migration completed for ${usersWithoutSession.length} users`);
+
+  res.json({
+    success: true,
+    message: "SessionId migration completed",
+    updated: usersWithoutSession.length,
+    results: logs,
+    timestamp: new Date(),
+  });
+};
+
+module.exports = { runSetupScripts, clearCart, migrateSessionId };
