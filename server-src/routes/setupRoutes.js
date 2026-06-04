@@ -16,10 +16,4 @@ router.post(
   clearCart,
 );
 
-router.post(
-  "/migrate-session-id",
-  timeWindowGuard("2026-06-03T00:00:00Z", 24),
-  migrateSessionId,
-);
-
 module.exports = router;
