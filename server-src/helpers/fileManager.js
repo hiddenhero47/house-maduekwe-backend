@@ -55,11 +55,21 @@ function generateFileInfo(originalName, mime) {
   };
 }
 
+function isValidFileName(fileName) {
+  const invalid = [".ds_store", "thumbs.db"];
+  return !invalid.includes(fileName.toLowerCase());
+}
+
 /**
  * 💾 Save buffer to disk
  */
 async function saveBuffer(buffer, originalName, mime) {
   const info = generateFileInfo(originalName, mime);
+
+  if (!isValidFileName(info.fileName)) {
+    throw new Error("Invalid system file blocked");
+  }
+  
   await fs.promises.writeFile(info.path, buffer);
   return info;
 }
@@ -221,6 +231,9 @@ const MEDIA_MAP = {
   videos: VIDEOS_DIR,
 };
 
+const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".mp4", ".webp"];
+const IGNORE_FILES = new Set([".ds_store", "thumbs.db", "desktop.ini"]);
+
 /**
  * Get all files in a media folder (pictures/videos) with metadata
  */
@@ -233,11 +246,18 @@ async function getFiles(type) {
 
   const files = await fs.promises.readdir(folder);
 
-  return files.map((file) => ({
-    name: file,
-    path: path.join(folder, file),
-    url: `${process.env.BASE_URL}/${type}/${file}`,
-  }));
+  return files
+    .filter((file) => {
+      if (IGNORE_FILES.has(file.toLowerCase())) return false;
+
+      const ext = path.extname(file).toLowerCase();
+      return ALLOWED_EXTENSIONS.includes(ext);
+    })
+    .map((file) => ({
+      name: file,
+      path: path.join(folder, file),
+      url: `${process.env.BASE_URL}/${type}/${file}`,
+    }));
 }
 
 /**
