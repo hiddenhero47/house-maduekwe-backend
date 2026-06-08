@@ -9,6 +9,21 @@ const {
 } = require("../helpers/cartHelper");
 const { validateStockStateful } = require("./checkoutController");
 
+// @desc    Get cart quantity count
+// @route   GET /api/cart/count
+// @access  Private
+const getCartCount = asyncHandler(async (req, res) => {
+  const cart = await Cart.findOne(
+    { user: req.user._id },
+    { itemList: 1 },
+  ).lean();
+
+  const count =
+    cart?.itemList?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+
+  res.json({ count });
+});
+
 // @desc    Get user cart
 // @route   GET /api/cart
 // @access  Private
@@ -218,4 +233,5 @@ module.exports = {
   getCart,
   addToCart,
   removeFromCart,
+  getCartCount,
 };

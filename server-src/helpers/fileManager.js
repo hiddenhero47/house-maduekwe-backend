@@ -21,7 +21,7 @@ fs.mkdirSync(VIDEOS_DIR, { recursive: true });
  */
 async function validateFileType(
   buffer,
-  allowed = ["image/jpeg", "image/png", "video/mp4"]
+  allowed = ["image/jpeg", "image/png", "video/mp4"],
 ) {
   const type = await FileType(buffer);
   if (!type) throw new Error("Unable to determine file type");
@@ -77,9 +77,11 @@ async function uploadHandler({ req, schema, allowedTypes }) {
       await schema(req);
     } catch (err) {
       const message = err.inner
-        ? err.inner.map(e => e.message).join("; ")
+        ? err.inner.map((e) => e.message).join("; ")
         : err.message;
-      errorLogs.push(`Upload validation warning (continued anyway): ${message}`);
+      errorLogs.push(
+        `Upload validation warning (continued anyway): ${message}`,
+      );
       return { results, errorLogs };
     }
   }
@@ -90,14 +92,14 @@ async function uploadHandler({ req, schema, allowedTypes }) {
       const type = await validateFileType(req.file.buffer, allowedTypes);
       if (type) {
         results.push(
-          await saveBuffer(req.file.buffer, req.file.originalname, type.mime)
+          await saveBuffer(req.file.buffer, req.file.originalname, type.mime),
         );
       } else {
         errorLogs.push(`Unsupported file type: ${req.file.originalname}`);
       }
     } catch (err) {
       errorLogs.push(
-        `Error processing file ${req.file.originalname}: ${err.message}`
+        `Error processing file ${req.file.originalname}: ${err.message}`,
       );
     }
   }
@@ -114,7 +116,7 @@ async function uploadHandler({ req, schema, allowedTypes }) {
         }
       } catch (err) {
         errorLogs.push(
-          `Error processing file ${f.originalname}: ${err.message}`
+          `Error processing file ${f.originalname}: ${err.message}`,
         );
       }
     }
@@ -136,7 +138,7 @@ async function uploadHandler({ req, schema, allowedTypes }) {
 
         if (type) {
           results.push(
-            await saveBuffer(buffer, `base64file.${type.ext}`, type.mime)
+            await saveBuffer(buffer, `base64file.${type.ext}`, type.mime),
           );
         } else {
           errorLogs.push(`Unsupported base64 file type: ${mime}`);
@@ -157,12 +159,12 @@ async function uploadHandler({ req, schema, allowedTypes }) {
           response.headers["content-type"] || "application/octet-stream";
         const type = await validateFileType(
           response.data,
-          allowedTypes || [mime]
+          allowedTypes || [mime],
         );
 
         if (type) {
           results.push(
-            await saveBuffer(response.data, path.basename(url), type.mime)
+            await saveBuffer(response.data, path.basename(url), type.mime),
           );
         } else {
           errorLogs.push(`Unsupported file type from URL: ${url}`);
@@ -198,10 +200,10 @@ async function updateFile({ oldFilePath, req, schema, allowedTypes }) {
   // Early validation gate — only proceed if validation passes
   if (schema) {
     try {
-      await schema(req);  // your validateAvatar function
+      await schema(req); // your validateAvatar function
     } catch (err) {
       const message = err.inner
-        ? err.inner.map(e => e.message).join("; ")
+        ? err.inner.map((e) => e.message).join("; ")
         : err.message;
 
       errorLogs.push(`Validation failed: ${message}`);
@@ -214,8 +216,54 @@ async function updateFile({ oldFilePath, req, schema, allowedTypes }) {
   return await uploadHandler({ req, schema, allowedTypes });
 }
 
+const MEDIA_MAP = {
+  pictures: PICTURES_DIR,
+  videos: VIDEOS_DIR,
+};
+
+/**
+ * Get all files in a media folder (pictures/videos) with metadata
+ */
+async function getFiles(type) {
+  const folder = MEDIA_MAP[type];
+
+  if (!folder) {
+    throw new Error("Invalid media type");
+  }
+
+  const files = await fs.promises.readdir(folder);
+
+  return files.map((file) => ({
+    name: file,
+    path: path.join(folder, file),
+    url: `${process.env.BASE_URL}/${type}/${file}`,
+  }));
+}
+
+/**
+ * Delete all files in a media folder (pictures/videos)
+ * Returns the number of files deleted
+ */
+async function deleteAllFiles(type) {
+  const folder = MEDIA_MAP[type];
+
+  if (!folder) {
+    throw new Error("Invalid media type");
+  }
+
+  const files = await fs.promises.readdir(folder);
+
+  await Promise.all(
+    files.map((file) => fs.promises.unlink(path.join(folder, file))),
+  );
+
+  return files.length;
+}
+
 module.exports = {
   uploadHandler,
   deleteFile,
   updateFile,
+  getFiles,
+  deleteAllFiles,
 };
