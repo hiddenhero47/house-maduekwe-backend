@@ -787,7 +787,7 @@ const requestReset = asyncHandler(async (req, res) => {
     },
   );
 
-  const resetUrl = `${process.env.FRONTEND_URL}/authentication/reset-password/${token}`;
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
 
   await sendTemplatedEmail({
     to: user.email,
