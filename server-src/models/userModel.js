@@ -108,12 +108,12 @@ const userSchema = mongoose.Schema(
 
 userSchema.virtual("currentUserRole");
 
-userSchema.index({
-  "authProviders.provider": 1,
-  "authProviders.providerId": 1,
-});
+// userSchema.index({
+//   "authProviders.provider": 1,
+//   "authProviders.providerId": 1,
+// });
 
-userSchema.index({ sessionId: 1 });
+// userSchema.index({ sessionId: 1 });
 
 userSchema.pre("save", async function (next) {
   const User = mongoose.model("User"); // Get the User model
