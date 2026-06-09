@@ -1,4 +1,6 @@
 const handleCors = (req, res, next) => {
+  console.log("entered CORS");
+  
   const allowedOrigin = [
     "http://localhost:3002",
     "http://localhost:4173",
@@ -25,6 +27,7 @@ const handleCors = (req, res, next) => {
   res.setHeader("Vary", "Origin");
 
   if (req.method === "OPTIONS") {
+    console.log(`CORS ${req.method} ${req.url}`);
     return res.status(204).end(); // 204 No Content is cleaner than 200
   }
 
