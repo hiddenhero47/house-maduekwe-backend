@@ -43,7 +43,6 @@ const paymentSchema = new mongoose.Schema(
 
     provider: {
       type: String,
-      index: true,
     },
 
     reference: {
