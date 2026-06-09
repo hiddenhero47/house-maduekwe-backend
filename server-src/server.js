@@ -20,15 +20,28 @@ const startServer = async () => {
 
     const publicPath = path.join(__dirname, "public");
 
+    //middleware cors
+    app.use(handleCors);
+
     //middleware for body parser
     app.use(
       "/api/payment/stripe/callback",
       express.raw({ type: "application/json" }),
     );
     const forms = multer();
-    app.use(express.json({ limit: "3mb" }));
+    app.use(express.json({ limit: "10mb" }));
     app.use(forms.any());
-    app.use(express.urlencoded({ extended: false, limit: "3mb" }));
+    app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+    app.use(
+      "/videos",
+      express.static(path.join(__dirname, "public/videos"), {
+        maxAge: "365d",
+        immutable: true,
+        setHeaders: (res) => {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        },
+      }),
+    );
 
     // Declaring Static Folder
     app.use(express.static(path.join(__dirname, "public")));
@@ -48,9 +61,6 @@ const startServer = async () => {
         },
       }),
     );
-
-    //middleware cors
-    app.use(handleCors);
 
     // test route
     app.get("/api/test", (req, res) => {
