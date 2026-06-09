@@ -78,10 +78,12 @@ const userSchema = mongoose.Schema(
           type: String,
           enum: ["local", "google", "apple"],
           required: true,
+          index: false, 
         },
         providerId: {
           type: String,
           required: true,
+          index: false, 
         },
       },
     ],
@@ -105,6 +107,11 @@ const userSchema = mongoose.Schema(
 );
 
 userSchema.virtual("currentUserRole");
+
+userSchema.index({
+  "authProviders.provider": 1,
+  "authProviders.providerId": 1,
+});
 
 userSchema.index({ sessionId: 1 });
 
