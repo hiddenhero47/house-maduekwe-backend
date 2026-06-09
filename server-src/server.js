@@ -20,9 +20,6 @@ const startServer = async () => {
 
     const publicPath = path.join(__dirname, "public");
 
-    //middleware cors
-    app.use(handleCors);
-
     //middleware for body parser
     app.use(
       "/api/payment/stripe/callback",
@@ -32,6 +29,7 @@ const startServer = async () => {
     app.use(express.json({ limit: "10mb" }));
     app.use(forms.any());
     app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+    app.use(handleCors);
     app.use(
       "/videos",
       express.static(path.join(__dirname, "public/videos"), {
