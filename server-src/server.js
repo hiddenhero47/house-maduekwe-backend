@@ -63,7 +63,7 @@ const startServer = async () => {
     // test route
     app.get("/api/test", (req, res) => {
       console.log("Test route hit!");
-      res.json({ message: "Hello from backend!" });
+      res.json({ message: "Hello from backend 😊 !" });
     });
 
     app.get("/api/test-email", async (req, res) => {
