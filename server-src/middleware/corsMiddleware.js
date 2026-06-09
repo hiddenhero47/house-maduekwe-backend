@@ -26,6 +26,9 @@ const handleCors = (req, res, next) => {
   // Optional but helpful
   res.setHeader("Vary", "Origin");
 
+  console.log("allowedOrigin:",allowedOrigin);
+  console.log("requestOrigin:",requestOrigin);
+
   if (req.method === "OPTIONS") {
     console.log(`CORS ${req.method} ${req.url}`);
     return res.status(204).end(); // 204 No Content is cleaner than 200
