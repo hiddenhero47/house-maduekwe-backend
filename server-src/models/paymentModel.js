@@ -43,7 +43,6 @@ const paymentSchema = new mongoose.Schema(
 
     provider: {
       type: String,
-      index: true,
     },
 
     reference: {
@@ -89,6 +88,7 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ user: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
+paymentSchema.index({ provider: 1 });
 
 const Payment = mongoose.model("Payment", paymentSchema);
 
