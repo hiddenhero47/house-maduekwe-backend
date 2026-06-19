@@ -7,6 +7,8 @@ const Cart = require("../models/cartModel");
 const asyncHandler = require("express-async-handler");
 const { User } = require("../models/userModel");
 const crypto = require("crypto");
+const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
+const { Order, ORDER_STATUS } = require("../models/orderModel");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -104,4 +106,43 @@ const migrateSessionId = async (req, res) => {
   });
 };
 
-module.exports = { runSetupScripts, clearCart, migrateSessionId };
+// @desc    Clear orders and payments
+// @route   DELETE /api/setup/clear-orders-payments
+// @access  Private/Admin
+const clearOrdersAndPayments = asyncHandler(async (req, res) => {
+  const { orderIds, paymentIds } = req.body;
+
+  // Clear specific records
+  if (
+    (Array.isArray(orderIds) && orderIds.length > 0) ||
+    (Array.isArray(paymentIds) && paymentIds.length > 0)
+  ) {
+    if (Array.isArray(orderIds) && orderIds.length > 0) {
+      await Order.deleteMany({
+        _id: { $in: orderIds },
+      });
+    }
+
+    if (Array.isArray(paymentIds) && paymentIds.length > 0) {
+      await Payment.deleteMany({
+        _id: { $in: paymentIds },
+      });
+    }
+
+    return res.json({
+      message: "Selected orders and payments cleared",
+    });
+  }
+
+  // No ids passed -> clear everything
+  await Promise.all([
+    Order.deleteMany({}),
+    Payment.deleteMany({}),
+  ]);
+
+  res.json({
+    message: "All orders and payments cleared",
+  });
+});
+
+module.exports = { runSetupScripts, clearCart, migrateSessionId, clearOrdersAndPayments };
