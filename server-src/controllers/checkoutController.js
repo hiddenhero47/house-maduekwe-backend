@@ -215,7 +215,7 @@ const checkout = asyncHandler(async (req, res) => {
       });
     }
 
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h
 
     // 🧾 Create Order
     const createdOrder = await Order.create(
@@ -306,12 +306,10 @@ const guestCheckout = asyncHandler(async (req, res) => {
 
   if (pendingOrder) {
     const error = new Error(
-      "You already have an unpaid order with this email. Please complete or cancel it first, or use another email address.",
+      "You have an unpaid order with this email. Please complete or cancel it",
     );
-
     error.type = "GUEST_PENDING_ORDER";
     error.code = "GUEST_PENDING_ORDER";
-
     throw error;
   }
 
@@ -459,7 +457,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
       });
     }
 
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
     // 🧾 Create Order
     const createdOrder = await Order.create(

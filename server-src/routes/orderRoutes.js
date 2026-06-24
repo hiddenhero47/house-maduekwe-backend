@@ -5,6 +5,8 @@ const {
   getOrderById,
   updateOrderStatus,
   cancelOrder,
+  cancelExpiredOrdersAdmin,
+  cancelExpiredGuestOrders,
 } = require("../controllers/orderController");
 const {
   confirmCheckout,
@@ -28,5 +30,11 @@ router.patch(
   updateOrderStatus,
 );
 router.patch("/:id/cancel", protect, cancelOrder);
+router.patch(
+  "/cancel-expired",
+  secureRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]),
+  cancelExpiredOrdersAdmin,
+);
+router.patch("/guest/cancel-expired", cancelExpiredGuestOrders);
 
 module.exports = router;

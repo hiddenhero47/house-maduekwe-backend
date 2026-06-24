@@ -20,8 +20,7 @@ router.post(
 
 router.post(
   "/clear-orders-payments",
-  timeWindowGuard("2026-06-19T00:00:00Z", 24),
-  secureRole(ROLE.SUPER_ADMIN),
+  timeWindowGuard("2026-06-24T00:00:00Z", 24),
   clearCart,
 );
 

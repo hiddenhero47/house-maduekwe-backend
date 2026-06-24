@@ -6,6 +6,7 @@ const PAYMENT_STATUS = {
   SUCCESS: "success",
   FAILED: "failed",
   REFUNDED: "refunded",
+  CANCELLED: "cancelled",
 };
 
 const paymentSchema = new mongoose.Schema(
@@ -56,7 +57,6 @@ const paymentSchema = new mongoose.Schema(
 
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
       ref: "User",
       index: true,
     },

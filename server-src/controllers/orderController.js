@@ -1,6 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
-const { Order, ORDER_STATUS } = require("../models/orderModel");
+const { Order, ORDER_STATUS, CHECKOUT_TYPES } = require("../models/orderModel");
 const { ROLE } = require("../models/userModel");
 const { Payment } = require("../models/paymentModel");
 const { reverseStockFromRollback } = require("../helpers/orderHelper");
@@ -14,6 +14,8 @@ const ORDER_STATUS_FLOW = {
   delivered: [],
   cancelled: [],
 };
+
+const CANCEL_GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 mins
 
 // @desc Get logged-in user's orders
 // @route GET /api/orders/me
@@ -200,6 +202,11 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new Error("Invalid order status");
   }
 
+  if (status === ORDER_STATUS.CANCELLED) {
+    res.status(400);
+    throw new Error("Invalid order status");
+  }
+
   const order = await Order.findById(id);
 
   if (!order) {
@@ -293,8 +300,7 @@ const cancelOrder = asyncHandler(async (req, res) => {
 
     // 🔐 AUTHORIZATION
     const isOwner = order.user.toString() === req.user._id.toString();
-    const isAdmin =
-      req.user.role === ROLE.ADMIN || req.user.role === ROLE.SUPER_ADMIN;
+    const isAdmin = [ROLE.ADMIN, ROLE.SUPER_ADMIN].includes(req.user.role);
 
     if (!isOwner && !isAdmin) {
       res.status(403);
@@ -353,10 +359,141 @@ const cancelOrder = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc Cancel expired pending orders
+// @route POST /api/orders/cancel-expired
+// @access Private (Admin)
+const cancelExpiredOrdersAdmin = asyncHandler(async (req, res) => {
+  const { checkoutType } = req.body;
+
+  const allowedTypes = Object.values(CHECKOUT_TYPES);
+
+  if (checkoutType && !allowedTypes.includes(checkoutType)) {
+    res.status(400);
+    throw new Error("Invalid checkout type");
+  }
+
+  const expiryCutoff = new Date(Date.now() - CANCEL_GRACE_PERIOD_MS);
+
+  const filter = {
+    status: ORDER_STATUS.PENDING,
+    expiresAt: {
+      $ne: null,
+      $lte: expiryCutoff,
+    },
+  };
+
+  if (checkoutType) {
+    filter.checkoutType = checkoutType;
+  }
+
+  const cancelledCount = await cancelExpiredOrders({
+    filter,
+    updatedBy: {
+      id: req.user._id,
+      email: req.user.email,
+    },
+  });
+
+  res.status(200).json({
+    message: `${cancelledCount} expired orders cancelled`,
+    cancelledCount,
+  });
+});
+
+// @desc Cancel expired guest orders by email
+// @route POST /api/orders/guest/cancel-expired
+// @access Public
+const cancelExpiredGuestOrders = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email?.trim()) {
+    res.status(400);
+    throw new Error("Email is required");
+  }
+
+  const expiryCutoff = new Date(Date.now() - CANCEL_GRACE_PERIOD_MS);
+
+  const cancelledCount = await cancelExpiredOrders({
+    filter: {
+      userEmail: email.trim().toLowerCase(),
+      checkoutType: CHECKOUT_TYPES.GUEST,
+      status: ORDER_STATUS.PENDING,
+      expiresAt: {
+        $ne: null,
+        $lte: expiryCutoff,
+      },
+    },
+    updatedBy: {
+      email: "guest-expiry-cleanup",
+    },
+  });
+
+  res.status(200).json({
+    message: `${cancelledCount} expired guest orders cancelled`,
+    cancelledCount,
+  });
+});
+
+const cancelExpiredOrders = async ({ filter, updatedBy }) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const orders = await Order.find(filter).session(session);
+
+    let cancelledCount = 0;
+
+    for (const order of orders) {
+      // Restore stock
+      if (order.rollbackInfo?.length) {
+        await reverseStockFromRollback({
+          rollbackInfo: order.rollbackInfo,
+          session,
+        });
+
+        order.rollbackInfo = null;
+      }
+
+      // Cancel payment
+      if (order.paymentId) {
+        await Payment.updateOne(
+          { _id: order.paymentId },
+          {
+            status: PAYMENT_STATUS.CANCELLED,
+          },
+          { session },
+        );
+      }
+
+      order.status = ORDER_STATUS.CANCELLED;
+
+      if (updatedBy) {
+        order.updatedBy = updatedBy;
+      }
+
+      await order.save({ session });
+
+      cancelledCount++;
+    }
+
+    await session.commitTransaction();
+
+    return cancelledCount;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
 module.exports = {
   getMyOrders,
   getOrders,
   getOrderById,
   updateOrderStatus,
   cancelOrder,
+  cancelExpiredOrdersAdmin,
+  cancelExpiredGuestOrders,
 };
