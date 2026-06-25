@@ -1,9 +1,10 @@
 const errorHandler = (err, req, res, next) => {
-  let statusCode = err.statusCode || res.statusCode || 500;
+  let statusCode =
+    err.statusCode || (res.statusCode === 200 ? 500 : res.statusCode);
 
   // Handle Yup validation errors specifically
   if (err.name === "ValidationError") {
-    return res.status(statusCode).json({
+    return res.status(400).json({
       message: "Validation failed",
       errors: err.errors, // array of validation messages
     });
