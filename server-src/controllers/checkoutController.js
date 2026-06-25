@@ -4,15 +4,19 @@ const { ShopItem, STATUS } = require("../models/shopItemModel");
 const { Address } = require("../models/addressModel");
 const { ExportFee } = require("../models/exportFeeModel");
 const asyncHandler = require("express-async-handler");
-const { ORDER_STATUS, Order } = require("../models/orderModel");
+const { ORDER_STATUS, Order, CHECKOUT_TYPES } = require("../models/orderModel");
 const { PAYMENT_STATUS, Payment } = require("../models/paymentModel");
-const checkoutValidationSchema = require("../validations/checkoutValidation");
+const {
+  checkoutValidationSchema,
+  confirmCheckoutValidation,
+  guestCheckoutValidationSchema,
+} = require("../validations/checkoutValidation");
 
 // @desc Confirmation & agreement on orders
 // @route POST /api/orders/confirm-checkout
 // @access Private
 const confirmCheckout = asyncHandler(async (req, res) => {
-  await checkoutValidationSchema.validate(req.body, {
+  await confirmCheckoutValidation.validate(req.body, {
     abortEarly: false,
   });
 
@@ -31,6 +35,8 @@ const confirmCheckout = asyncHandler(async (req, res) => {
     pendingOrders,
 
     order: {
+      consigneesName: summary.consigneesName,
+      checkoutType: CHECKOUT_TYPES.USER,
       items: summary.order.items,
       address: summary.address,
       totalAmount: summary.order.totalAmount,
@@ -93,7 +99,7 @@ const checkout = asyncHandler(async (req, res) => {
       throw error;
     }
 
-    const { user, address, order, payment } = summary;
+    const { user, address, order, payment, consigneesName } = summary;
 
     const rollbackInfo = [];
 
@@ -209,7 +215,7 @@ const checkout = asyncHandler(async (req, res) => {
       });
     }
 
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h
 
     // 🧾 Create Order
     const createdOrder = await Order.create(
@@ -217,6 +223,8 @@ const checkout = asyncHandler(async (req, res) => {
         {
           user: user._id,
           userEmail: user.email,
+          consigneesName: consigneesName,
+          checkoutType: CHECKOUT_TYPES.USER,
           items: order.items,
           address,
           totalAmount: order.totalAmount,
@@ -279,6 +287,231 @@ const checkout = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc   Guest checkout orders
+// @route  POST /api/orders/guest-checkout
+// @access Public
+const guestCheckout = asyncHandler(async (req, res) => {
+  await guestCheckoutValidationSchema.validate(req.body, {
+    abortEarly: false,
+  });
+
+  const { email } = req.body;
+
+  const pendingOrder = await Order.findOne({
+    userEmail: email,
+    checkoutType: CHECKOUT_TYPES.GUEST,
+    status: ORDER_STATUS.PENDING,
+    // expiresAt: { $gt: new Date() },
+  }).lean();
+
+  if (pendingOrder) {
+    const error = new Error(
+      "You have an unpaid order with this email. Please complete or cancel it",
+    );
+    error.type = "GUEST_PENDING_ORDER";
+    error.code = "GUEST_PENDING_ORDER";
+    throw error;
+  }
+
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const summary = await buildGuestCheckoutSummary(req);
+
+    // 🚨 FINAL STOCK ENFORCEMENT
+    const stockIssues = summary.stock
+      .map((s, index) => ({ ...s, index }))
+      .filter((s) => !s.isAvailable);
+
+    if (stockIssues.length > 0) {
+      const error = new Error("Stock validation failed");
+      error.type = "STOCK_ERROR";
+      error.details = stockIssues;
+      throw error;
+    }
+
+    const { address, order, payment, consigneesName, email, phoneNumber } =
+      summary;
+
+    const rollbackInfo = [];
+
+    for (const item of order.items) {
+      const groupedResult = validateGroupedVariants(item);
+
+      const primaryId = groupedResult?.primaryId;
+      const optionId = groupedResult?.optionId;
+
+      let attrIds = [];
+
+      // -----------------------------
+      // 1️⃣ MAIN PRODUCT STOCK
+      // -----------------------------
+      const result = await ShopItem.updateOne(
+        {
+          _id: item.shopItem._id,
+          quantity: { $gte: item.quantity },
+        },
+        {
+          $inc: {
+            quantity: -item.quantity,
+          },
+        },
+        { session },
+      );
+
+      if (result.modifiedCount === 0) {
+        throw new Error(
+          `Stock mismatch during checkout for ${item.shopItem.name}. Please refresh and try again.`,
+        );
+      }
+
+      // -----------------------------
+      // 2️⃣ ATTRIBUTE STOCK
+      // -----------------------------
+      if (
+        Array.isArray(item.selectedAttributes) &&
+        item.selectedAttributes.length > 0
+      ) {
+        attrIds = item.selectedAttributes
+          .map((a) =>
+            typeof a.Attribute === "object" ? a.Attribute._id : a.Attribute,
+          )
+          .filter(Boolean);
+
+        const attrResult = await ShopItem.updateOne(
+          {
+            _id: item.shopItem._id,
+            "attributes.Attribute": { $in: attrIds },
+          },
+          {
+            $inc: {
+              "attributes.$[attr].quantity": -item.quantity,
+            },
+          },
+          {
+            arrayFilters: [
+              {
+                "attr.Attribute": { $in: attrIds },
+                "attr.quantity": { $gte: item.quantity },
+              },
+            ],
+            session,
+          },
+        );
+
+        if (attrResult.modifiedCount === 0) {
+          throw new Error(
+            `Stock mismatch during checkout for ${item.shopItem.name}. Please refresh and try again.`,
+          );
+        }
+      }
+
+      // -----------------------------
+      // 3️⃣ GROUPED VARIANTS STOCK
+      // -----------------------------
+      if (primaryId && optionId) {
+        const gvResult = await ShopItem.updateOne(
+          {
+            _id: item.shopItem._id,
+          },
+          {
+            $inc: {
+              "groupedVariants.$[group].options.$[opt].quantity":
+                -item.quantity,
+            },
+          },
+          {
+            arrayFilters: [
+              {
+                "group.primaryAttribute": primaryId,
+              },
+              {
+                "opt.attribute": optionId,
+                "opt.quantity": { $gte: item.quantity },
+              },
+            ],
+            session,
+          },
+        );
+
+        if (gvResult.modifiedCount === 0) {
+          throw new Error(
+            `Stock mismatch during checkout for ${item.shopItem.name}. Please refresh and try again.`,
+          );
+        }
+      }
+
+      rollbackInfo.push({
+        quantity: item.quantity,
+        shopItem: item.shopItem._id,
+        attributes: attrIds,
+        groupedVariant:
+          primaryId && optionId
+            ? {
+                primaryId,
+                optionId,
+              }
+            : null,
+      });
+    }
+
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+    // 🧾 Create Order
+    const createdOrder = await Order.create(
+      [
+        {
+          userEmail: email,
+          extraInfo: { phoneNumber },
+          consigneesName,
+          checkoutType: CHECKOUT_TYPES.GUEST,
+          items: order.items,
+          address,
+          totalAmount: order.totalAmount,
+          totalVat: order.totalVat,
+          shippingFee: order.shippingFee,
+          status: ORDER_STATUS.PENDING,
+          shippedBy: "Internal",
+          expiresAt,
+          rollbackInfo: rollbackInfo.length > 0 ? rollbackInfo : null,
+        },
+      ],
+      { session },
+    );
+
+    // 💳 Create Payment
+    const createdPayment = await Payment.create(
+      [
+        {
+          userEmail: email,
+          amountToPay: payment.amountToPay,
+          currency: payment.currency,
+          status: PAYMENT_STATUS.PENDING,
+        },
+      ],
+      { session },
+    );
+
+    // 🔗 Link payment → order
+    createdOrder[0].paymentId = createdPayment[0]._id;
+    await createdOrder[0].save({ session });
+
+    await session.commitTransaction();
+
+    res.status(201).json({
+      order: createdOrder[0],
+      payment: createdPayment[0],
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+});
+
 const getAttrKey = (a) => {
   if (!a?.Attribute) return null;
 
@@ -289,12 +522,11 @@ const getAttrKey = (a) => {
 
 // Checkout Functions
 const getCheckoutData = async (req) => {
-  const { itemList, selectedAddress } = req.body;
+  const { itemList, selectedAddress, consigneesName } = req.body;
   const user = req.user;
 
   let address = null;
   let items = null;
-  let paymentProvider = null;
 
   if (!user) {
     throw new Error("User not authenticated");
@@ -354,8 +586,8 @@ const getCheckoutData = async (req) => {
     user,
     items,
     address,
-    paymentProvider,
     currency: currency,
+    consigneesName,
   };
 };
 
@@ -644,7 +876,8 @@ const resolveShippingFee = async ({ country, state }) => {
 };
 
 const buildCheckoutSummary = async (req) => {
-  const { user, items, address, currency } = await getCheckoutData(req);
+  const { user, items, address, currency, consigneesName } =
+    await getCheckoutData(req);
 
   // 🧾 Items totals
   const { totalAmount, totalVat } = checkoutItemsTotals(items);
@@ -675,6 +908,7 @@ const buildCheckoutSummary = async (req) => {
     user,
     address,
     stock,
+    consigneesName,
 
     order: {
       items: orderItems,
@@ -691,9 +925,122 @@ const buildCheckoutSummary = async (req) => {
   };
 };
 
+const getCheckoutDataGuest = async (req) => {
+  const { itemList, address, email, phoneNumber, consigneesName } = req.body;
+
+  if (!Array.isArray(itemList) || itemList.length === 0) {
+    throw new Error("Item list is required");
+  }
+
+  // 🛒 Get all shop items
+  const shopItemIds = itemList.map((item) => item.shopItem);
+  const uniqueIds = [...new Set(shopItemIds.map(String))];
+
+  const shopItems = await ShopItem.find({
+    _id: { $in: uniqueIds },
+    isDeleted: false,
+  }).populate([
+    { path: "category", select: "name" },
+    {
+      path: "attributes.Attribute",
+      select: "name value type display",
+    },
+  ]);
+
+  if (shopItems.length !== uniqueIds.length) {
+    throw new Error("One or more shop items do not exist");
+  }
+
+  // 🧠 Fast lookup
+  const shopItemMap = new Map(
+    shopItems.map((item) => [item._id.toString(), item]),
+  );
+
+  // ✅ Same structure as cart.itemList
+  const items = buildValidatedCartItems(itemList, shopItemMap).map((item) => ({
+    ...item,
+    shopItem: shopItemMap.get(item.shopItem.toString()),
+  }));
+
+  const currency = items[0].shopItem.currency;
+
+  const hasMixedCurrency = items.some(
+    (item) => item.shopItem.currency !== currency,
+  );
+
+  if (hasMixedCurrency) {
+    throw new Error("Mixed currencies are not allowed");
+  }
+
+  return {
+    items,
+    address,
+    email,
+    phoneNumber,
+    consigneesName,
+    currency,
+  };
+};
+
+const buildGuestCheckoutSummary = async (req) => {
+  const { items, address, currency, consigneesName, email, phoneNumber } =
+    await getCheckoutDataGuest(req);
+
+  // 🧾 Items totals
+  const { totalAmount, totalVat } = checkoutItemsTotals(items);
+
+  // 🚚 Shipping
+  let shippingFee = 0;
+
+  if (address) {
+    const shipping = await resolveShippingFee({
+      country: address.country,
+      state: address.state,
+    });
+
+    shippingFee = shipping.shippingFee;
+  }
+
+  const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
+
+  // 📦 Stock validation
+  const stock = validateStockStateful(items);
+
+  // 📦 Order item snapshot
+  const orderItems = items.map((item) => ({
+    shopItem: {
+      ...item.shopItem,
+    },
+    quantity: item.quantity,
+    selectedAttributes: item.selectedAttributes || [],
+  }));
+
+  return {
+    address,
+    stock,
+    consigneesName,
+    email,
+    phoneNumber,
+
+    order: {
+      items: orderItems,
+      totalAmount,
+      totalVat,
+      shippingFee,
+      currency,
+    },
+
+    payment: {
+      amountToPay,
+      currency,
+    },
+  };
+};
+
 module.exports = {
   confirmCheckout,
   checkout,
+  guestCheckout,
   validateGroupedVariants,
   validateStockStateful,
 };

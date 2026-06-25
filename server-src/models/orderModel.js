@@ -11,6 +11,11 @@ const ORDER_STATUS = {
   RETURNING: "processing-return",
 };
 
+const CHECKOUT_TYPES = {
+  USER: "user-checkout",
+  GUEST: "guest-checkout",
+};
+
 const orderItemSchema = new mongoose.Schema(
   {
     shopItem: {
@@ -67,9 +72,20 @@ const orderSchema = new mongoose.Schema(
       type: String, // e.g. DHL, FedEx, Internal
     },
 
+    checkoutType: {
+      type: String,
+      default: CHECKOUT_TYPES.USER,
+      enum: Object.values(CHECKOUT_TYPES),
+    },
+
     address: {
       type: Object,
       required: [true, "Shipping address is required"],
+    },
+
+    consigneesName: {
+      type: String,
+      required: [true, "Please give the full name of the consignee"],
     },
 
     totalAmount: {
@@ -92,9 +108,11 @@ const orderSchema = new mongoose.Schema(
 
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
       ref: "User",
       index: true,
+      required: function () {
+        return this.checkoutType === CHECKOUT_TYPES.USER;
+      },
     },
 
     userEmail: {
@@ -162,6 +180,20 @@ const orderSchema = new mongoose.Schema(
         type: String,
       },
     },
+
+    isLocked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    lockedAt: {
+      type: Date,
+    },
+
+    lockedBy: {
+      type: mongoose.Schema.Types.UUID,
+    },
   },
   {
     timestamps: true,
@@ -176,4 +208,5 @@ const Order = mongoose.model("Order", orderSchema);
 module.exports = {
   Order,
   ORDER_STATUS,
+  CHECKOUT_TYPES,
 };

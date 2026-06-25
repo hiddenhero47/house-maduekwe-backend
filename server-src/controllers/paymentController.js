@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
 const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
-const { Order, ORDER_STATUS } = require("../models/orderModel");
+const { Order, ORDER_STATUS, CHECKOUT_TYPES } = require("../models/orderModel");
 const stripe = require("../config/stripe");
 const { sendTemplatedEmail } = require("../helpers/emailSender");
 
@@ -160,6 +160,13 @@ const processStripeEvent = async (req, res) => {
   const payment = await Payment.findById(paymentId);
   if (!payment) return;
 
+  const isSuccess = intent?.status === "succeeded";
+  const isAmount = intent.amount === Math.round(payment.amountToPay * 100);
+  const isCurrency =
+    intent.currency.toLowerCase() === payment.currency.toLowerCase();
+
+  if (!isSuccess || !isAmount || !isCurrency) return;
+
   // 🔐 Idempotency
   if (payment.status === PAYMENT_STATUS.SUCCESS && payment.provider) {
     if (
@@ -201,17 +208,24 @@ const processStripeEvent = async (req, res) => {
   if (order && payment.status === PAYMENT_STATUS.SUCCESS) {
     // Customer email
     if (payment.userEmail) {
+      const refURL =
+        order.checkoutType === CHECKOUT_TYPES.GUEST
+          ? `/guest-order?email=${encodeURIComponent(
+              order.userEmail,
+            )}&orderId=${order._id}`
+          : `/settings?currentSettings=orders&orderId=${order._id}`;
+
       await sendTemplatedEmail({
         to: payment.userEmail,
         subject: "Order Confirmed 🎉",
         template: "orderConfirmation",
         variables: {
-          name: order.user.email,
+          name: order.userEmail,
           orderId: order._id,
           paymentRef: payment.reference,
           amount: payment.amountToPay,
           currency: payment.currency,
-          orderUrl: `${process.env.FRONTEND_URL}/settings?currentSettings=orders&orderId=${order._id}`,
+          orderUrl: `${process.env.FRONTEND_URL}${refURL}`,
         },
       });
     }
@@ -222,7 +236,7 @@ const processStripeEvent = async (req, res) => {
       subject: "💰 New Paid Order Received",
       template: "newPaidOrder",
       variables: {
-        customerEmail: order.user.email,
+        customerEmail: order.userEmail,
         orderId: order._id,
         paymentRef: payment.reference,
         amount: payment.amountToPay,
@@ -287,7 +301,8 @@ const createStripeIntent = asyncHandler(async (req, res) => {
       metadata: {
         paymentId: payment._id.toString(),
         orderId: payment.orderId.toString(),
-        userId: payment.user.toString(),
+        userId: payment.user ? payment.user.toString() : null,
+        checkoutType: order.checkoutType,
         providerName: "stripe",
       },
     },

@@ -1,3 +1,11 @@
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled Rejection:", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+
+  process.exit(1);
+});
 const express = require("express");
 const multer = require("multer");
 const bodyParser = require("body-parser");
@@ -9,6 +17,8 @@ const port = process.env.PORT || 4000;
 const path = require("path");
 const handleCors = require("./middleware/corsMiddleware");
 const { sendTemplatedEmail, loadTemplates } = require("./helpers/emailSender");
+const startCronJobs = require("./jobs/cronIndex");
+const cronStatus = require("./jobs/status");
 
 const startServer = async () => {
   try {
@@ -66,6 +76,7 @@ const startServer = async () => {
       res.json({ message: "Hello from backend 😊 !" });
     });
 
+    // test email
     app.get("/api/test-email", async (req, res) => {
       try {
         const result = await sendTemplatedEmail({
@@ -84,6 +95,14 @@ const startServer = async () => {
       } catch (err) {
         res.status(500).json(err);
       }
+    });
+
+    // job health route
+    app.get("/api/health", (req, res) => {
+      res.json({
+        server: "running",
+        cron: cronStatus,
+      });
     });
 
     app.use("/api/setup", require("./routes/setupRoutes"));
@@ -106,7 +125,10 @@ const startServer = async () => {
 
     app.use(errorHandler);
 
-    app.listen(port, () => console.log(`🚀 Server started on port ${port}`));
+    app.listen(port, () => {
+      console.log(`🚀 Server started on port ${port}`);
+      startCronJobs();
+    });
   } catch (error) {
     console.error("Startup failed:", error.message);
 
