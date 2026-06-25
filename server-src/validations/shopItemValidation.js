@@ -137,6 +137,12 @@ const shopItemValidationSchema = yup.object({
           const type = attr.type || "unknown";
           const qty = attr.quantity || 0;
 
+          if (typeof qty !== "number") {
+            return this.createError({
+              message: `Quantity for attribute "${type}" must be a number`,
+            });
+          }
+
           typeMap.set(type, (typeMap.get(type) || 0) + qty);
 
           if (typeMap.get(type) > parent.quantity) {
