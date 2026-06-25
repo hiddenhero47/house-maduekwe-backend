@@ -1,5 +1,6 @@
 const { ShopItem } = require("../models/shopItemModel");
 const { ORDER_STATUS, Order } = require("../models/orderModel");
+const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 
 const reverseStockFromRollback = async ({ rollbackInfo, session }) => {

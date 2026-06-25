@@ -3,7 +3,7 @@ const cronStatus = require("../status");
 
 const testCronJob = () => {
   cron.schedule(
-    "*/5 * * * *",
+    "* * * * *",
     async () => {
       if (cronStatus.testJob.running) {
         console.log("Previous run still executing");

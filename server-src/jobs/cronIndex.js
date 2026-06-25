@@ -9,6 +9,7 @@ const startCronJobs = () => {
   initialized = true;
 
   expiredOrderCleanup();
+  // testCronJob();
 
   console.log("All cron jobs started");
 };
