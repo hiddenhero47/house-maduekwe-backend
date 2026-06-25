@@ -24,4 +24,10 @@ router.post(
   clearCart,
 );
 
+router.post(
+  "/clear-orders-payments",
+  timeWindowGuard("2026-06-25T00:00:00Z", 24),
+  clearOrdersAndPayments,
+);
+
 module.exports = router;
