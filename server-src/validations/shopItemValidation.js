@@ -67,7 +67,12 @@ const shopItemValidationSchema = yup.object({
           .oneOf(Object.values(attributeType), "Invalid attribute type")
           .required("Attribute type is required"),
         isDefault: yup.boolean().default(false),
-        quantity: yup.number().min(0).optional(),
+        quantity: yup
+          .number()
+          .strict(true)
+          .typeError("Quantity must be a number")
+          .min(0)
+          .optional(),
         additionalAmount: yup.number().min(0).optional(),
         images: yup
           .array()
@@ -135,13 +140,7 @@ const shopItemValidationSchema = yup.object({
 
         for (const attr of attributes) {
           const type = attr.type || "unknown";
-          const qty = attr.quantity || 0;
-
-          if (typeof qty !== "number") {
-            return this.createError({
-              message: `Quantity for attribute "${type}" must be a number`,
-            });
-          }
+          const qty = Number(attr.quantity) || 0;
 
           typeMap.set(type, (typeMap.get(type) || 0) + qty);
 
