@@ -180,6 +180,20 @@ const orderSchema = new mongoose.Schema(
         type: String,
       },
     },
+
+    isLocked: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    lockedAt: {
+      type: Date,
+    },
+
+    lockedBy: {
+      type: mongoose.Schema.Types.UUID,
+    },
   },
   {
     timestamps: true,

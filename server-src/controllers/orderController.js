@@ -3,8 +3,15 @@ const mongoose = require("mongoose");
 const { Order, ORDER_STATUS, CHECKOUT_TYPES } = require("../models/orderModel");
 const { ROLE } = require("../models/userModel");
 const { Payment } = require("../models/paymentModel");
-const { reverseStockFromRollback } = require("../helpers/orderHelper");
+const {
+  reverseStockFromRollback,
+  cancelExpiredOrders,
+  lockOrder,
+  lockOrders,
+  unlockOrders,
+} = require("../helpers/orderHelper");
 const { PAYMENT_STATUS } = require("../models/paymentModel");
+const { randomUUID } = require("crypto");
 
 const ORDER_STATUS_FLOW = {
   pending: ["processing", "cancelled"],
@@ -261,6 +268,13 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     order.userEmail &&
     order.shippingDetails
   ) {
+    const refURL =
+      order.checkoutType === CHECKOUT_TYPES.GUEST
+        ? `/guest-order?email=${encodeURIComponent(
+            order.userEmail,
+          )}&orderId=${order._id}`
+        : `/settings?currentSettings=orders&orderId=${order._id}`;
+
     await sendTemplatedEmail({
       to: order.userEmail,
       subject: "Your Order Has Been Shipped 📦",
@@ -271,7 +285,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
         company: order.shippingDetails.company,
         trackingNumber: order.shippingDetails.trackingNumber,
         year: new Date().getFullYear(),
-        orderUrl: `${process.env.FRONTEND_URL}/settings?currentSettings=orders&orderId=${order._id}`,
+        orderUrl: `${process.env.FRONTEND_URL}${refURL}`,
       },
     });
   }
@@ -286,65 +300,87 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 // @route PATCH /api/orders/:id/cancel
 // @access Private (Owner, Admin, Super Admin)
 const cancelOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    res.status(404);
+    throw new Error("Order not found");
+  }
+
+  const isOwner =
+    order.user && order.user.toString() === req.user._id.toString();
+  const isAdmin = [ROLE.ADMIN, ROLE.SUPER_ADMIN].includes(req.user.role);
+
+  if (!isOwner && !isAdmin) {
+    res.status(403);
+    throw new Error("Not authorized to cancel this order");
+  }
+
+  if (order.status === ORDER_STATUS.CANCELLED) {
+    res.status(400);
+    throw new Error("Order already cancelled");
+  }
+
+  if (order.status !== ORDER_STATUS.PENDING) {
+    res.status(400);
+    throw new Error("Cannot cancel this order");
+  }
+
+  let lockAcquired = false;
+
+  const lockId = randomUUID();
+
   const session = await mongoose.startSession();
+
+  const lockedOrder = await lockOrder({
+    orderId: order._id,
+    lockId,
+  });
+
+  if (!lockedOrder) {
+    res.status(409);
+    throw new Error("Order is currently being processed");
+  }
+
+  lockAcquired = true;
 
   try {
     session.startTransaction();
 
-    const order = await Order.findById(req.params.id).session(session);
-
-    if (!order) {
-      res.status(404);
-      throw new Error("Order not found");
-    }
-
-    // 🔐 AUTHORIZATION
-    const isOwner = order.user.toString() === req.user._id.toString();
-    const isAdmin = [ROLE.ADMIN, ROLE.SUPER_ADMIN].includes(req.user.role);
-
-    if (!isOwner && !isAdmin) {
-      res.status(403);
-      throw new Error("Not authorized to cancel this order");
-    }
-
-    if (order.status === ORDER_STATUS.CANCELLED) {
-      throw new Error("Order already cancelled");
-    }
-
-    // optional: block shipped
-    if (order.status !== ORDER_STATUS.PENDING) {
-      throw new Error("Cannot cancel shipped order");
-    }
-
     // 🔁 RESTORE STOCK (only if exists)
-    if (order.rollbackInfo) {
+    if (lockedOrder.rollbackInfo?.length) {
       await reverseStockFromRollback({
-        rollbackInfo: order.rollbackInfo,
+        rollbackInfo: lockedOrder.rollbackInfo,
         session,
       });
 
       // 🚨 prevent double rollback
-      order.rollbackInfo = null;
+      lockedOrder.rollbackInfo = null;
     }
 
     // 💳 update payment (safe even if null)
-    if (order.paymentId) {
+    if (lockedOrder.paymentId) {
       await Payment.updateOne(
-        { _id: order.paymentId },
+        { _id: lockedOrder.paymentId },
         { status: PAYMENT_STATUS.CANCELLED },
         { session },
       );
     }
 
     // 📦 cancel order
-    order.status = ORDER_STATUS.CANCELLED;
+    lockedOrder.status = ORDER_STATUS.CANCELLED;
 
-    order.updatedBy = {
+    // 🔓 release lock
+    lockedOrder.isLocked = false;
+    lockedOrder.lockedAt = null;
+    lockedOrder.lockedBy = null;
+
+    lockedOrder.updatedBy = {
       id: req.user._id,
       email: req.user.email,
     };
 
-    await order.save({ session });
+    await lockedOrder.save({ session });
 
     await session.commitTransaction();
 
@@ -353,6 +389,26 @@ const cancelOrder = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
+    // 🔓 cleanup stale lock if transaction failed
+    try {
+      if (lockAcquired) {
+        await Order.updateOne(
+          {
+            _id: req.params.id,
+            lockedBy: lockId,
+          },
+          {
+            $set: {
+              isLocked: false,
+              lockedAt: null,
+              lockedBy: null,
+            },
+          },
+        );
+      }
+    } catch (unlockError) {
+      console.error("[CANCEL_ORDER] Failed to release lock:", unlockError);
+    }
     throw error;
   } finally {
     session.endSession();
@@ -418,6 +474,7 @@ const cancelExpiredGuestOrders = asyncHandler(async (req, res) => {
       userEmail: email.trim().toLowerCase(),
       checkoutType: CHECKOUT_TYPES.GUEST,
       status: ORDER_STATUS.PENDING,
+      isLocked: false,
       expiresAt: {
         $ne: null,
         $lte: expiryCutoff,
@@ -433,60 +490,6 @@ const cancelExpiredGuestOrders = asyncHandler(async (req, res) => {
     cancelledCount,
   });
 });
-
-const cancelExpiredOrders = async ({ filter, updatedBy }) => {
-  const session = await mongoose.startSession();
-
-  try {
-    session.startTransaction();
-
-    const orders = await Order.find(filter).session(session);
-
-    let cancelledCount = 0;
-
-    for (const order of orders) {
-      // Restore stock
-      if (order.rollbackInfo?.length) {
-        await reverseStockFromRollback({
-          rollbackInfo: order.rollbackInfo,
-          session,
-        });
-
-        order.rollbackInfo = null;
-      }
-
-      // Cancel payment
-      if (order.paymentId) {
-        await Payment.updateOne(
-          { _id: order.paymentId },
-          {
-            status: PAYMENT_STATUS.CANCELLED,
-          },
-          { session },
-        );
-      }
-
-      order.status = ORDER_STATUS.CANCELLED;
-
-      if (updatedBy) {
-        order.updatedBy = updatedBy;
-      }
-
-      await order.save({ session });
-
-      cancelledCount++;
-    }
-
-    await session.commitTransaction();
-
-    return cancelledCount;
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-};
 
 module.exports = {
   getMyOrders,
