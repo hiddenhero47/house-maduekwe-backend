@@ -2,7 +2,7 @@ const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
 const { Order, ORDER_STATUS, CHECKOUT_TYPES } = require("../models/orderModel");
 const { ROLE } = require("../models/userModel");
-const { Payment } = require("../models/paymentModel");
+const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const {
   reverseStockFromRollback,
   cancelExpiredOrders,
@@ -10,7 +10,6 @@ const {
   lockOrders,
   unlockOrders,
 } = require("../helpers/orderHelper");
-const { PAYMENT_STATUS } = require("../models/paymentModel");
 const { randomUUID } = require("crypto");
 
 const ORDER_STATUS_FLOW = {
@@ -416,7 +415,7 @@ const cancelOrder = asyncHandler(async (req, res) => {
 });
 
 // @desc Cancel expired pending orders
-// @route POST /api/orders/cancel-expired
+// @route PATCH /api/orders/cancel-expired
 // @access Private (Admin)
 const cancelExpiredOrdersAdmin = asyncHandler(async (req, res) => {
   const { checkoutType } = req.body;
@@ -457,7 +456,7 @@ const cancelExpiredOrdersAdmin = asyncHandler(async (req, res) => {
 });
 
 // @desc Cancel expired guest orders by email
-// @route POST /api/orders/guest/cancel-expired
+// @route PATCH /api/orders/guest/cancel-expired
 // @access Public
 const cancelExpiredGuestOrders = asyncHandler(async (req, res) => {
   const { email } = req.body;

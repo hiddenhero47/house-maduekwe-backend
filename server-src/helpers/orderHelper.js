@@ -1,5 +1,6 @@
 const { ShopItem } = require("../models/shopItemModel");
 const { ORDER_STATUS, Order } = require("../models/orderModel");
+const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 
