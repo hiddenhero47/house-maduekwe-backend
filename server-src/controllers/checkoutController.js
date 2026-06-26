@@ -215,7 +215,7 @@ const checkout = asyncHandler(async (req, res) => {
       });
     }
 
-    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h
+    const expiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1h
 
     // 🧾 Create Order
     const createdOrder = await Order.create(

@@ -9,7 +9,7 @@ const CANCEL_GRACE_PERIOD_MS = 15 * 60 * 1000;
 
 const expiredOrderCleanup = () => {
   cron.schedule(
-    "0 */2 * * *",
+    "0 * * * *",
     async () => {
       if (cronStatus.expiredOrderCleanup?.running) {
         console.log(
