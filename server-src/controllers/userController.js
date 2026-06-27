@@ -495,6 +495,9 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
+
+    // 🚨 CRITICAL: invalidate ALL sessions
+    user.sessionId = crypto.randomUUID();
   }
 
   if (phoneNumber && !phoneNumber.number && !phoneNumber.country) {
