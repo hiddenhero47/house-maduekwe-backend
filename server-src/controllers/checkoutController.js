@@ -100,11 +100,15 @@ const checkout = asyncHandler(async (req, res) => {
       throw error;
     }
 
+    console.log("right after Stock validation failed");
+
     const { user, address, order, payment, consigneesName } = summary;
 
     const rollbackInfo = [];
 
-    console.log(summary.order.items, "summary.order.items");
+    console.log(summary?.order, "summary.order");
+
+    console.log(summary?.order?.items, "summary.order.items");
 
     for (const item of summary.order.items) {
       const groupedResult = validateGroupedVariants(item);
@@ -995,18 +999,6 @@ const buildGuestCheckoutSummary = async (req) => {
   const { items, address, currency, consigneesName, email, phoneNumber } =
     await getCheckoutDataGuest(req);
 
-  console.log(
-    items,
-    address,
-    currency,
-    consigneesName,
-    email,
-    phoneNumber,
-    "getCheckoutDataGuest",
-  );
-  console.log(items[0]?.shopItem, "items[0].shopItem");
-  console.log(items[0]?.shopItem?.attributes, "items[0].shopItem.attributes");
-
   // 🧾 Items totals
   const { totalAmount, totalVat } = checkoutItemsTotals(items);
 
@@ -1035,6 +1027,8 @@ const buildGuestCheckoutSummary = async (req) => {
     quantity: item.quantity,
     selectedAttributes: item.selectedAttributes || [],
   }));
+
+  console.log("ended buildGuestCheckoutSummary");
 
   return {
     address,
