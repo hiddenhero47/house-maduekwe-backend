@@ -97,7 +97,7 @@ const startServer = async () => {
       }
     });
 
-    // cron job health route
+    // job health route
     app.get("/api/health", (req, res) => {
       res.json({
         server: "running",
