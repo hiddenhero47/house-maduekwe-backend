@@ -1023,9 +1023,7 @@ const buildGuestCheckoutSummary = async (req) => {
 
   // 📦 Order item snapshot
   const orderItems = items.map((item) => ({
-    shopItem: {
-      ...item.shopItem,
-    },
+    shopItem: item.shopItem.toObject(),
     quantity: item.quantity,
     selectedAttributes: item.selectedAttributes || [],
   }));
