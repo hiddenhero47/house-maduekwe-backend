@@ -11,6 +11,7 @@ const {
   confirmCheckoutValidation,
   guestCheckoutValidationSchema,
 } = require("../validations/checkoutValidation");
+const { buildValidatedCartItems } = require("../helpers/cartHelper");
 
 // @desc Confirmation & agreement on orders
 // @route POST /api/orders/confirm-checkout
