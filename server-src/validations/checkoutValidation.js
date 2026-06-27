@@ -22,13 +22,6 @@ const checkoutValidationSchema = yup.object({
     .nullable()
     .notRequired()
     .required("Shipping address is required"),
-
-  paymentMethod: yup
-    .string()
-    .matches(objectIdRegex, "Invalid payment provider id")
-    .nullable()
-    .notRequired()
-    .optional(),
 });
 
 const confirmCheckoutValidation = yup.object({
@@ -116,20 +109,15 @@ const guestCheckoutValidationSchema = yup.object({
         )
         .required("Phone country is required"),
     })
-    .required("Phone number is required"),
+    .optional(),
 
   address: yup
     .object({
       country: yup.string().trim().required("Country is required"),
-
       state: yup.string().trim().required("State is required"),
-
       city: yup.string().trim().required("City is required"),
-
       fullAddress: yup.string().trim().required("Full address is required"),
-
       zipCode: yup.string().trim().default(""),
-
       stateLine: yup.string().trim().default(""),
     })
     .required("Address is required"),
