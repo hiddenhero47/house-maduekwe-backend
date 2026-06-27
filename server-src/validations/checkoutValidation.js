@@ -109,7 +109,8 @@ const guestCheckoutValidationSchema = yup.object({
         )
         .required("Phone country is required"),
     })
-    .optional(),
+    .nullable()
+    .notRequired(),
 
   address: yup
     .object({
