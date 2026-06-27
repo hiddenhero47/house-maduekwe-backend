@@ -959,18 +959,11 @@ const getCheckoutDataGuest = async (req) => {
     shopItems.map((item) => [item._id.toString(), item]),
   );
 
-  console.log(itemList, "itemList");
-
-  console.log(shopItemMap, "shopItemMap");
-
   // ✅ Same structure as cart.itemList
   const items = buildValidatedCartItems(itemList, shopItemMap).map((item) => ({
     ...item,
     shopItem: shopItemMap.get(item.shopItem.toString()),
   }));
-
-  console.log(items, "Same structure as cart.itemList");
-  
 
   const currency = items[0].shopItem.currency;
 
@@ -995,6 +988,11 @@ const getCheckoutDataGuest = async (req) => {
 const buildGuestCheckoutSummary = async (req) => {
   const { items, address, currency, consigneesName, email, phoneNumber } =
     await getCheckoutDataGuest(req);
+
+  console.log(items, address, currency, consigneesName, email, phoneNumber, "getCheckoutDataGuest");
+  console.log(items?.shopItem, "items.shopItem");
+  console.log(items?.shopItem?.attributes, "items.shopItem.attributes");
+  
 
   // 🧾 Items totals
   const { totalAmount, totalVat } = checkoutItemsTotals(items);
