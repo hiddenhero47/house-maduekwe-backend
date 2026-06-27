@@ -102,15 +102,9 @@ const checkout = asyncHandler(async (req, res) => {
       throw error;
     }
 
-    console.log("right after Stock validation failed");
-
     const { user, address, order, payment, consigneesName } = summary;
 
     const rollbackInfo = [];
-
-    console.log(summary?.order, "summary.order");
-
-    console.log(summary?.order?.items, "summary.order.items");
 
     for (const item of summary.order.items) {
       const groupedResult = validateGroupedVariants(item);
@@ -466,6 +460,8 @@ const guestCheckout = asyncHandler(async (req, res) => {
       });
     }
 
+    console.log(rollbackInfo, "rollbackInfo");
+    
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
     // 🧾 Create Order
@@ -494,6 +490,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
     const createdPayment = await Payment.create(
       [
         {
+          orderId: createdOrder[0]._id,
           userEmail: email,
           amountToPay: payment.amountToPay,
           currency: payment.currency,
@@ -1027,11 +1024,6 @@ const buildGuestCheckoutSummary = async (req) => {
     quantity: item.quantity,
     selectedAttributes: item.selectedAttributes || [],
   }));
-
-  console.log("ended buildGuestCheckoutSummary");
-  console.log(orderItems, "orderItems");
-  console.log(orderItems[0]?.shopItem);
-  
 
   return {
     address,
