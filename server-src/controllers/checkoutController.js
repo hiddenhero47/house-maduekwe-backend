@@ -929,7 +929,13 @@ const buildCheckoutSummary = async (req) => {
 };
 
 const getCheckoutDataGuest = async (req) => {
-  const { itemList, address, email, phoneNumber, consigneesName } = req.body;
+  const {
+    itemList,
+    address,
+    email,
+    phoneNumber = null,
+    consigneesName,
+  } = req.body;
 
   if (!Array.isArray(itemList) || itemList.length === 0) {
     throw new Error("Item list is required");
@@ -989,10 +995,17 @@ const buildGuestCheckoutSummary = async (req) => {
   const { items, address, currency, consigneesName, email, phoneNumber } =
     await getCheckoutDataGuest(req);
 
-  console.log(items, address, currency, consigneesName, email, phoneNumber, "getCheckoutDataGuest");
-  console.log(items?.shopItem, "items.shopItem");
-  console.log(items?.shopItem?.attributes, "items.shopItem.attributes");
-  
+  console.log(
+    items,
+    address,
+    currency,
+    consigneesName,
+    email,
+    phoneNumber,
+    "getCheckoutDataGuest",
+  );
+  console.log(items[0]?.shopItem, "items[0].shopItem");
+  console.log(items[0]?.shopItem?.attributes, "items[0].shopItem.attributes");
 
   // 🧾 Items totals
   const { totalAmount, totalVat } = checkoutItemsTotals(items);
