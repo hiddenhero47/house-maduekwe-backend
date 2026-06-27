@@ -88,6 +88,8 @@ const checkout = asyncHandler(async (req, res) => {
 
     const summary = await buildCheckoutSummary(req);
 
+    console.log("summary");
+    
     // 🚨 FINAL STOCK ENFORCEMENT (inside transaction)
     const stockIssues = summary.stock
       .map((s, index) => ({ ...s, index }))
@@ -1029,6 +1031,9 @@ const buildGuestCheckoutSummary = async (req) => {
   }));
 
   console.log("ended buildGuestCheckoutSummary");
+  console.log(orderItems, "orderItems");
+  console.log(orderItems[0]?.shopItem);
+  
 
   return {
     address,
