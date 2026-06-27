@@ -104,6 +104,8 @@ const checkout = asyncHandler(async (req, res) => {
 
     const rollbackInfo = [];
 
+    console.log(summary.order.items, "summary.order.items");
+
     for (const item of summary.order.items) {
       const groupedResult = validateGroupedVariants(item);
 
@@ -957,11 +959,18 @@ const getCheckoutDataGuest = async (req) => {
     shopItems.map((item) => [item._id.toString(), item]),
   );
 
+  console.log(itemList, "itemList");
+
+  console.log(shopItemMap, "shopItemMap");
+
   // ✅ Same structure as cart.itemList
   const items = buildValidatedCartItems(itemList, shopItemMap).map((item) => ({
     ...item,
     shopItem: shopItemMap.get(item.shopItem.toString()),
   }));
+
+  console.log(items, "Same structure as cart.itemList");
+  
 
   const currency = items[0].shopItem.currency;
 
