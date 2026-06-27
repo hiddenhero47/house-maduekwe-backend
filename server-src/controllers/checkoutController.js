@@ -459,8 +459,6 @@ const guestCheckout = asyncHandler(async (req, res) => {
             : null,
       });
     }
-
-    console.log(rollbackInfo, "rollbackInfo");
     
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
