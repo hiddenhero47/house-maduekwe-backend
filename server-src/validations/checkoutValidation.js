@@ -95,22 +95,23 @@ const guestCheckoutValidationSchema = yup.object({
     .email("Invalid email address")
     .required("Email is required"),
 
-  phoneNumber: yup
-    .object({
-      number: yup.string().trim().required("Phone number is required"),
-
-      country: yup
-        .string()
-        .trim()
-        .uppercase()
-        .matches(
-          /^[A-Z]{2}$/,
-          "Phone country must be a valid 2-letter country code",
-        )
-        .required("Phone country is required"),
-    })
-    .nullable()
-    .notRequired(),
+  phoneNumber: yup.object().when([], {
+    is: (_, schema) => schema,
+    then: yup
+      .object({
+        number: yup.string().trim().required("Phone number is required"),
+        country: yup
+          .string()
+          .trim()
+          .uppercase()
+          .matches(
+            /^[A-Z]{2}$/,
+            "Phone country must be a valid 2-letter country code",
+          )
+          .required("Phone country is required"),
+      })
+      .notRequired(),
+  }),
 
   address: yup
     .object({
