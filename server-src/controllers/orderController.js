@@ -178,8 +178,44 @@ const getOrderById = asyncHandler(async (req, res) => {
   if (
     req.user.role !== ROLE.ADMIN &&
     req.user.role !== ROLE.SUPER_ADMIN &&
-    order.user._id.toString() !== req.user._id.toString()
+    order.user._id.toString() !== req?.user?._id.toString()
   ) {
+    res.status(403);
+    throw new Error("Not authorized to view this order");
+  }
+
+  let payment = null;
+
+  if (order.paymentId) {
+    payment = await Payment.findById(order.paymentId).lean();
+  }
+
+  res.status(200).json({
+    order,
+    payment,
+  });
+});
+
+// @desc Get order by id with payment
+// @route GET /api/orders/:id
+// @access Public (Admin or Owner)
+const getOrderByIdAll = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400);
+    throw new Error("Invalid order id");
+  }
+
+  const order = await Order.findById(id).populate("user", "name email").lean();
+
+  if (!order) {
+    res.status(404);
+    throw new Error("Order not found");
+  }
+
+  // Optional security: user can only access their own order
+  if (order?.checkoutType !== CHECKOUT_TYPES.GUEST) {
     res.status(403);
     throw new Error("Not authorized to view this order");
   }
@@ -498,4 +534,5 @@ module.exports = {
   cancelOrder,
   cancelExpiredOrdersAdmin,
   cancelExpiredGuestOrders,
+  getOrderByIdAll,
 };
