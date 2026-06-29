@@ -25,7 +25,7 @@ router.post("/guest-checkout", guestCheckout);
 router.get("/me", protect, getMyOrders);
 router.get("/", secureRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]), getOrders);
 router.get("/:id", protect, getOrderById);
-router.get("/:id", getOrderByIdAll);
+router.get("/:id/public", getOrderByIdAll);
 router.patch(
   "/:id/status",
   secureRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]),
