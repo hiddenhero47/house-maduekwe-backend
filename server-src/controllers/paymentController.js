@@ -249,7 +249,7 @@ const processStripeEvent = async (req, res) => {
 
 // @desc Create Stripe payment intent
 // @route POST /api/payments/stripe-intent
-// @access Private
+// @access Public
 const createStripeIntent = asyncHandler(async (req, res) => {
   const { paymentId } = req.body;
 
