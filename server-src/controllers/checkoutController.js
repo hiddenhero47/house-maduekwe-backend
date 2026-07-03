@@ -317,7 +317,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
     error.statusCode = 400;
     error.type = "GUEST_PENDING_ORDER";
     error.code = "GUEST_PENDING_ORDER";
-    error.orderId = pendingOrder._id;
+    error.data = pendingOrder;
     throw error;
   }
 
