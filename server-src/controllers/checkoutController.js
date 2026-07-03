@@ -314,6 +314,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
     const error = new Error(
       "You have an unpaid order with this email. Please complete or cancel it",
     );
+    error.status = 400;
     error.type = "GUEST_PENDING_ORDER";
     error.code = "GUEST_PENDING_ORDER";
     error.orderId = pendingOrder._id;
@@ -333,7 +334,6 @@ const guestCheckout = asyncHandler(async (req, res) => {
       .filter((s) => !s.isAvailable);
 
     if (stockIssues.length > 0) {
-      res.status(400);
       const error = new Error("Stock validation failed");
       error.type = "STOCK_ERROR";
       error.details = stockIssues;
