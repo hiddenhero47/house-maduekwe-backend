@@ -89,7 +89,7 @@ const checkout = asyncHandler(async (req, res) => {
     const summary = await buildCheckoutSummary(req);
 
     console.log("summary");
-    
+
     // 🚨 FINAL STOCK ENFORCEMENT (inside transaction)
     const stockIssues = summary.stock
       .map((s, index) => ({ ...s, index }))
@@ -305,7 +305,10 @@ const guestCheckout = asyncHandler(async (req, res) => {
     checkoutType: CHECKOUT_TYPES.GUEST,
     status: ORDER_STATUS.PENDING,
     // expiresAt: { $gt: new Date() },
-  }).lean();
+  })
+    .sort({ createdAt: -1 })
+    .select("_id")
+    .lean();
 
   if (pendingOrder) {
     const error = new Error(
@@ -313,6 +316,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
     );
     error.type = "GUEST_PENDING_ORDER";
     error.code = "GUEST_PENDING_ORDER";
+    error.orderId = pendingOrder._id;
     throw error;
   }
 
@@ -329,6 +333,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
       .filter((s) => !s.isAvailable);
 
     if (stockIssues.length > 0) {
+      res.status(400);
       const error = new Error("Stock validation failed");
       error.type = "STOCK_ERROR";
       error.details = stockIssues;
@@ -459,7 +464,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
             : null,
       });
     }
-    
+
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
     // 🧾 Create Order
