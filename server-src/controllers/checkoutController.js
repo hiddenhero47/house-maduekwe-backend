@@ -333,6 +333,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
       .filter((s) => !s.isAvailable);
 
     if (stockIssues.length > 0) {
+      res.status(400);
       const error = new Error("Stock validation failed");
       error.type = "STOCK_ERROR";
       error.details = stockIssues;
