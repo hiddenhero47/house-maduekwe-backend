@@ -510,13 +510,13 @@ const cancelExpiredGuestOrders = asyncHandler(async (req, res) => {
       checkoutType: CHECKOUT_TYPES.GUEST,
       status: ORDER_STATUS.PENDING,
       isLocked: false,
-      expiresAt: {
-        $ne: null,
-        $lte: expiryCutoff,
-      },
+      // expiresAt: {
+      //   $ne: null,
+      //   $lte: expiryCutoff,
+      // },
     },
     updatedBy: {
-      email: "guest-expiry-cleanup",
+      email: "guest-cleanup",
     },
   });
 
