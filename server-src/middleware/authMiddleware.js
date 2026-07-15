@@ -2,6 +2,45 @@ const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
 const { User } = require("../models/userModel");
 
+const getAuthenticatedUser = async (token) => {
+  // Verify token
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+  // Get user from the token
+  const user = await User.findById(decoded.id).select("-password");
+
+  if (!user) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  // 🔐 SESSION VALIDATION (IMPORTANT ADDITION)
+  if (decoded.sessionId !== user.sessionId) {
+    throw new Error("SESSION_INVALID");
+  }
+
+  return user;
+};
+
+const handleAuthError = (error, res) => {
+  console.error(error);
+
+  res.status(401);
+
+  if (error.name === "TokenExpiredError") {
+    throw new Error("Session expired. Please login again.");
+  }
+
+  if (error.message === "SESSION_INVALID") {
+    throw new Error("Session expired. Please login again.");
+  }
+
+  if (error.message === "USER_NOT_FOUND") {
+    throw new Error("User not authorized");
+  }
+
+  throw new Error("Not authorized");
+};
+
 const protect = asyncHandler(async (req, res, next) => {
   let token;
 
@@ -13,30 +52,11 @@ const protect = asyncHandler(async (req, res, next) => {
       // Get token from header
       token = req.headers.authorization.split(" ")[1];
 
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Get user from the token
-      const user = await User.findById(decoded.id).select("-password");
-
-      if (!user) {
-        res.status(401);
-        throw new Error("Not authorized");
-      }
-
-      // 🔐 SESSION VALIDATION (IMPORTANT ADDITION)
-      if (decoded.sessionId !== user.sessionId) {
-        res.status(401);
-        throw new Error("Session expired. Please login again.");
-      }
-
-      req.user = user;
+      req.user = await getAuthenticatedUser(token);
 
       next();
     } catch (error) {
-      console.log(error);
-      res.status(401);
-      throw new Error("Not authorized");
+      handleAuthError(error, res);
     }
   }
   if (!token) {
@@ -57,22 +77,7 @@ const secureRole = (roles) =>
         // Get token from header
         token = req.headers.authorization.split(" ")[1];
 
-        // Verify token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // Get user from the token
-        const user = await User.findById(decoded.id).select("-password");
-
-        if (!user) {
-          res.status(401);
-          throw new Error("Not authorized");
-        }
-
-        // 🔐 SESSION VALIDATION (IMPORTANT ADDITION)
-        if (decoded.sessionId !== user.sessionId) {
-          res.status(401);
-          throw new Error("Session expired. Please login again.");
-        }
+        const user = await getAuthenticatedUser(token);
 
         const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
@@ -87,9 +92,7 @@ const secureRole = (roles) =>
 
         next();
       } catch (error) {
-        console.log(error);
-        res.status(401);
-        throw new Error("Not authorized");
+        handleAuthError(error, res);
       }
     } else {
       res.status(401);
