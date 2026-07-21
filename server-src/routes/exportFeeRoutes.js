@@ -7,12 +7,17 @@ const {
   updateExportFee,
   disableExportFee,
   deleteExportFeePermanently,
+  getAcceptedCountries,
 } = require("../controllers/exportFeeController");
 
 const { secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
 const verify2fa = require("../middleware/verify2faMiddleware");
 
+// 🌍 Public route
+router.get("/accepted-countries", getAcceptedCountries);
+
+// 🔒 All routes below require SUPER_ADMIN
 router.use(secureRole(ROLE.SUPER_ADMIN));
 
 router.post("/", createExportFee);
