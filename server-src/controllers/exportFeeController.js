@@ -93,10 +93,23 @@ const deleteExportFeePermanently = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc Get accepted countries
+// @route GET /api/export-fees/accepted-countries
+// @access Public
+const getAcceptedCountries = asyncHandler(async (req, res) => {
+  const countries = await ExportFee.find(
+    { isActive: true },
+    { country: 1, _id: 0 } // return only the country field
+  ).sort({ country: 1 });
+
+  res.json(countries.map((c) => c.country));
+});
+
 module.exports = {
   createExportFee,
   getExportFees,
   updateExportFee,
   disableExportFee,
   deleteExportFeePermanently,
+  getAcceptedCountries,
 };
