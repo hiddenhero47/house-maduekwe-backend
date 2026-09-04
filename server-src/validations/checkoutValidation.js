@@ -120,7 +120,7 @@ const guestCheckoutValidationSchema = yup.object({
       city: yup.string().trim().required("City is required"),
       fullAddress: yup.string().trim().required("Full address is required"),
       zipCode: yup.string().trim().default(""),
-      stateLine: yup.string().trim().default(""),
+      addressLine2: yup.string().trim().default(""),
     })
     .required("Address is required"),
 });
