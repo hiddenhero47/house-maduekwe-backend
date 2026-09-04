@@ -12,7 +12,7 @@ const addressValidationSchema = yup.object({
     ),
   description: yup.string().optional(),
   zipCode: yup.string().optional(),
-  stateLine: yup.string().optional(),
+  addressLine2: yup.string().optional(),
   coordinates: yup.mixed().optional(),
   fullAddress: yup.string().required("Full address is required"),
   isDefault: yup.boolean().optional(),

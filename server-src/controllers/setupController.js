@@ -9,6 +9,7 @@ const { User } = require("../models/userModel");
 const crypto = require("crypto");
 const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const { Order, ORDER_STATUS } = require("../models/orderModel");
+const { Address } = require("../models/addressModel");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -55,56 +56,29 @@ const clearCart = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Migrate users to add sessionId
-// @route   POST /api/setup/migrate-session-id
-// @access  Private (Admin)
-const migrateSessionId = async (req, res) => {
-  const logs = [];
-
-  const usersWithoutSession = await User.find({
-    $or: [
-      { sessionId: { $exists: false } },
-      { sessionId: null },
-      { sessionId: "" },
-    ],
-  });
-
-  if (!usersWithoutSession.length) {
-    return res.json({
-      success: true,
-      message: "All users already have sessionId",
-      updated: 0,
-      results: logs,
-    });
-  }
-
-  const bulkOps = usersWithoutSession.map((user) => {
-    logs.push(`Updating user: ${user._id}`);
-
-    return {
-      updateOne: {
-        filter: { _id: user._id },
-        update: {
-          $set: {
-            sessionId: crypto.randomUUID(),
-          },
+const normalizeAddresses = asyncHandler(async (req, res) => {
+  const result = await Address.updateMany(
+    {
+      stateLine: { $exists: true },
+    },
+    [
+      {
+        $set: {
+          addressLine2: "$stateLine",
         },
       },
-    };
-  });
-
-  await User.bulkWrite(bulkOps);
-
-  logs.push(`Migration completed for ${usersWithoutSession.length} users`);
+      {
+        $unset: "stateLine",
+      },
+    ],
+  );
 
   res.json({
     success: true,
-    message: "SessionId migration completed",
-    updated: usersWithoutSession.length,
-    results: logs,
-    timestamp: new Date(),
+    message: "Addresses migrated successfully",
+    updated: result.modifiedCount,
   });
-};
+});
 
 // @desc    Clear orders and payments
 // @route   DELETE /api/setup/clear-orders-payments
@@ -135,14 +109,16 @@ const clearOrdersAndPayments = asyncHandler(async (req, res) => {
   }
 
   // No ids passed -> clear everything
-  await Promise.all([
-    Order.deleteMany({}),
-    Payment.deleteMany({}),
-  ]);
+  await Promise.all([Order.deleteMany({}), Payment.deleteMany({})]);
 
   res.json({
     message: "All orders and payments cleared",
   });
 });
 
-module.exports = { runSetupScripts, clearCart, migrateSessionId, clearOrdersAndPayments };
+module.exports = {
+  runSetupScripts,
+  clearCart,
+  clearOrdersAndPayments,
+  normalizeAddresses,
+};

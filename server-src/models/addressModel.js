@@ -36,7 +36,7 @@ const addressSchema = mongoose.Schema(
       type: String,
       default: "",
     },
-    stateLine: {
+    addressLine2: {
       type: String,
       default: "",
     },

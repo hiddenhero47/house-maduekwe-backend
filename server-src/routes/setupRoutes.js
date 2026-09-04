@@ -1,6 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const { runSetupScripts, clearCart, migrateSessionId, clearOrdersAndPayments } = require("../controllers/setupController");
+const {
+  runSetupScripts,
+  clearCart,
+  clearOrdersAndPayments,
+  normalizeAddresses,
+} = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
 const { protect, secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
@@ -22,6 +27,12 @@ router.post(
   "/clear-orders-payments",
   timeWindowGuard("2026-06-25T00:00:00Z", 24),
   clearOrdersAndPayments,
+);
+
+router.post(
+  "/normalize-addresses",
+  timeWindowGuard("2026-09-04T00:00:00Z", 24),
+  normalizeAddresses,
 );
 
 module.exports = router;
