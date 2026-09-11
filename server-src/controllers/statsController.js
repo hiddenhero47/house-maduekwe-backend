@@ -156,7 +156,7 @@ const getTopSellingItems = asyncHandler(async (req, res) => {
       monthStart.getUTCMonth() + 1,
     ).padStart(2, "0")}`,
     data,
-    note: "revenue = price × quantity; excludes attribute upcharges and VAT",
+    note: "revenue = price × quantity; excludes attribute upcharges, VAT, and productTax",
   });
 });
 

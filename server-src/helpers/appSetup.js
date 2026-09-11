@@ -42,6 +42,7 @@ const ensureUSExportFee = async () => {
   try {
     const countryCode = "US";
     const texasState = "Texas";
+    const defaultVatRate = 0; // TODO: set the real default VAT/sales-tax rate for this country
 
     let exportFee = await ExportFee.findOne({ country: countryCode });
 
@@ -49,6 +50,7 @@ const ensureUSExportFee = async () => {
       exportFee = await ExportFee.create({
         country: countryCode,
         defaultAmount: 10, // set your default export fee
+        defaultVat: defaultVatRate,
         states: [
           {
             state: texasState,
@@ -65,6 +67,15 @@ const ensureUSExportFee = async () => {
       };
     }
 
+    let needsSave = false;
+
+    // 🔧 Backfill defaultVat for export fees created before defaultVat existed —
+    // it's now a required field, so any .save() below would otherwise throw.
+    if (typeof exportFee.defaultVat !== "number") {
+      exportFee.defaultVat = defaultVatRate;
+      needsSave = true;
+    }
+
     // If country exists, ensure Texas exists
     const texasExists = exportFee.states.some((s) => s.state === texasState);
 
@@ -74,12 +85,16 @@ const ensureUSExportFee = async () => {
         amount: 5,
       });
 
+      needsSave = true;
+    }
+
+    if (needsSave) {
       await exportFee.save();
 
       return {
         task: "Ensure Export Fee",
         status: "success",
-        message: `Texas export fee added to ${countryCode}`,
+        message: `Export fee updated for ${countryCode} (defaultVat/Texas backfilled as needed)`,
       };
     }
 

@@ -5,6 +5,7 @@ const {
   clearCart,
   clearOrdersAndPayments,
   normalizeAddresses,
+  migrateTaxAndVatFields,
 } = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
 const { protect, secureRole } = require("../middleware/authMiddleware");
@@ -33,6 +34,12 @@ router.post(
   "/normalize-addresses",
   timeWindowGuard("2026-09-04T00:00:00Z", 24),
   normalizeAddresses,
+);
+
+router.post(
+  "/migrate-tax-vat-fields",
+  timeWindowGuard("2026-09-13T00:00:00Z", 24),
+  migrateTaxAndVatFields,
 );
 
 module.exports = router;

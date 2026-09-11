@@ -42,6 +42,7 @@ const confirmCheckout = asyncHandler(async (req, res) => {
       address: summary.address,
       totalAmount: summary.order.totalAmount,
       totalVat: summary.order.totalVat,
+      totalProductTax: summary.order.totalProductTax,
       shippingFee: summary.order.shippingFee,
       currency: summary.order.currency,
       status: ORDER_STATUS.PENDING,
@@ -232,6 +233,7 @@ const checkout = asyncHandler(async (req, res) => {
           address,
           totalAmount: order.totalAmount,
           totalVat: order.totalVat,
+          totalProductTax: order.totalProductTax,
           shippingFee: order.shippingFee,
           status: ORDER_STATUS.PENDING,
           shippedBy: "Internal",
@@ -479,6 +481,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
           address,
           totalAmount: order.totalAmount,
           totalVat: order.totalVat,
+          totalProductTax: order.totalProductTax,
           shippingFee: order.shippingFee,
           status: ORDER_STATUS.PENDING,
           shippedBy: "Internal",
@@ -795,7 +798,7 @@ const roundMoney = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 const checkoutItemsTotals = (items) => {
   let totalAmount = 0;
-  let totalVat = 0;
+  let totalProductTax = 0;
 
   const breakdown = [];
 
@@ -827,10 +830,12 @@ const checkoutItemsTotals = (items) => {
     unitPrice = roundMoney(unitPrice + attributeExtra);
 
     const itemTotal = roundMoney(unitPrice * quantity);
-    const itemVat = roundMoney((itemTotal * shopItem.vat) / 100);
+    const itemProductTax = roundMoney(
+      (itemTotal * (shopItem.productTax || 0)) / 100,
+    );
 
     totalAmount += itemTotal;
-    totalVat += itemVat;
+    totalProductTax += itemProductTax;
 
     breakdown.push({
       shopItem: shopItem._id,
@@ -839,14 +844,14 @@ const checkoutItemsTotals = (items) => {
       quantity,
       attributeExtra,
       itemTotal,
-      itemVat,
+      itemProductTax,
       currency: shopItem.currency,
     });
   }
 
   return {
     totalAmount: roundMoney(totalAmount),
-    totalVat: roundMoney(totalVat),
+    totalProductTax: roundMoney(totalProductTax),
     breakdown,
   };
 };
@@ -856,8 +861,10 @@ const resolveShippingFee = async ({ country, state }) => {
     throw new Error("Shipping country is required");
   }
 
+  // NOTE: ExportFee.country is stored uppercase (schema enforces /^[A-Z]{2}$/),
+  // so the lookup must match that casing rather than lowercasing it.
   const exportFee = await ExportFee.findOne({
-    country: country.toLowerCase(),
+    country: country.toUpperCase(),
     isActive: true,
   }).lean();
 
@@ -866,6 +873,7 @@ const resolveShippingFee = async ({ country, state }) => {
   }
 
   let shippingFee = exportFee.defaultAmount;
+  let vatRate = exportFee.defaultVat;
 
   if (state && Array.isArray(exportFee.states)) {
     const matchedState = exportFee.states.find(
@@ -874,11 +882,16 @@ const resolveShippingFee = async ({ country, state }) => {
 
     if (matchedState) {
       shippingFee = matchedState.amount;
+
+      if (typeof matchedState.vat === "number") {
+        vatRate = matchedState.vat;
+      }
     }
   }
 
   return {
     shippingFee,
+    vatRate,
     shippingCountry: exportFee.country,
     shippingState: state || null,
   };
@@ -888,20 +901,25 @@ const buildCheckoutSummary = async (req) => {
   const { user, items, address, currency, consigneesName } =
     await getCheckoutData(req);
 
-  // 🧾 Items totals
-  const { totalAmount, totalVat } = checkoutItemsTotals(items);
+  // 🧾 Items totals (product subtotal + per-product special tax)
+  const { totalAmount, totalProductTax } = checkoutItemsTotals(items);
 
-  // 🚚 Shipping
+  // 🚚 Shipping + destination VAT
   let shippingFee = 0;
+  let totalVat = 0;
+
   if (address) {
     const shipping = await resolveShippingFee({
       country: address.country,
       state: address.state,
     });
     shippingFee = shipping.shippingFee;
+    totalVat = roundMoney((totalAmount * (shipping.vatRate || 0)) / 100);
   }
 
-  const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
+  const amountToPay = roundMoney(
+    totalAmount + totalVat + totalProductTax + shippingFee,
+  );
 
   const stock = validateStockStateful(items);
   // 📦 Order item snapshot (schema-compliant)
@@ -923,6 +941,7 @@ const buildCheckoutSummary = async (req) => {
       items: orderItems,
       totalAmount,
       totalVat,
+      totalProductTax,
       shippingFee,
       currency,
     },
@@ -1001,11 +1020,12 @@ const buildGuestCheckoutSummary = async (req) => {
   const { items, address, currency, consigneesName, email, phoneNumber } =
     await getCheckoutDataGuest(req);
 
-  // 🧾 Items totals
-  const { totalAmount, totalVat } = checkoutItemsTotals(items);
+  // 🧾 Items totals (product subtotal + per-product special tax)
+  const { totalAmount, totalProductTax } = checkoutItemsTotals(items);
 
-  // 🚚 Shipping
+  // 🚚 Shipping + destination VAT
   let shippingFee = 0;
+  let totalVat = 0;
 
   if (address) {
     const shipping = await resolveShippingFee({
@@ -1014,9 +1034,12 @@ const buildGuestCheckoutSummary = async (req) => {
     });
 
     shippingFee = shipping.shippingFee;
+    totalVat = roundMoney((totalAmount * (shipping.vatRate || 0)) / 100);
   }
 
-  const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
+  const amountToPay = roundMoney(
+    totalAmount + totalVat + totalProductTax + shippingFee,
+  );
 
   // 📦 Stock validation
   const stock = validateStockStateful(items);
@@ -1039,6 +1062,7 @@ const buildGuestCheckoutSummary = async (req) => {
       items: orderItems,
       totalAmount,
       totalVat,
+      totalProductTax,
       shippingFee,
       currency,
     },

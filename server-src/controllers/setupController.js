@@ -10,6 +10,8 @@ const crypto = require("crypto");
 const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const { Order, ORDER_STATUS } = require("../models/orderModel");
 const { Address } = require("../models/addressModel");
+const { ShopItem } = require("../models/shopItemModel");
+const { ExportFee } = require("../models/exportFeeModel");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -80,6 +82,54 @@ const normalizeAddresses = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Backfill old data for the productTax/weight/defaultVat schema changes
+// @route   POST /api/setup/migrate-tax-vat-fields
+// @access  Private/Admin (time-window guarded, see setupRoutes)
+const migrateTaxAndVatFields = asyncHandler(async (req, res) => {
+  // 1️⃣ ExportFee.defaultVat is now required — backfill any country created before
+  //    it existed. Defaults to 0; this is a placeholder, NOT a real VAT rate.
+  const exportFeeResult = await ExportFee.updateMany(
+    { defaultVat: { $exists: false } },
+    { $set: { defaultVat: 0 } },
+  );
+
+  // 2️⃣ ShopItem.productTax replaces the old universal "vat" field. Backfill it to 0
+  //    (most products won't have a special tax), then drop the orphaned "vat" field
+  //    so it doesn't linger under a misleading name. Old vat values are intentionally
+  //    NOT copied into productTax — that field used to mean general VAT, not a
+  //    per-product special tax, so carrying the value over would misrepresent intent.
+  const shopItemTaxResult = await ShopItem.updateMany(
+    { productTax: { $exists: false } },
+    { $set: { productTax: 0 } },
+  );
+
+  const shopItemVatCleanupResult = await ShopItem.updateMany(
+    { vat: { $exists: true } },
+    { $unset: { vat: "" } },
+  );
+
+  // 3️⃣ Order.totalProductTax is new — backfill orders placed before it existed.
+  //    Mongoose's schema default only applies when a document is hydrated/saved
+  //    through Mongoose; raw aggregation reads (e.g. the stats API) need the field
+  //    to actually exist in the stored document.
+  const orderResult = await Order.updateMany(
+    { totalProductTax: { $exists: false } },
+    { $set: { totalProductTax: 0 } },
+  );
+
+  res.json({
+    success: true,
+    message:
+      "Migration complete. ⚠️ ExportFee.defaultVat was backfilled to 0 as a placeholder — review and set the real VAT rate per country before relying on it. ShopItem.weight was intentionally left untouched; it must be filled in per product.",
+    results: {
+      exportFeesDefaultVatBackfilled: exportFeeResult.modifiedCount,
+      shopItemsProductTaxBackfilled: shopItemTaxResult.modifiedCount,
+      shopItemsOldVatFieldRemoved: shopItemVatCleanupResult.modifiedCount,
+      ordersTotalProductTaxBackfilled: orderResult.modifiedCount,
+    },
+  });
+});
+
 // @desc    Clear orders and payments
 // @route   DELETE /api/setup/clear-orders-payments
 // @access  Private/Admin
@@ -121,4 +171,5 @@ module.exports = {
   clearCart,
   clearOrdersAndPayments,
   normalizeAddresses,
+  migrateTaxAndVatFields,
 };

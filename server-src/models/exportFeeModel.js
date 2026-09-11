@@ -12,6 +12,11 @@ const stateFeeSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
+
+  vat: {
+    type: Number,
+    min: 0,
+  },
 });
 
 const exportFeeSchema = new mongoose.Schema(
@@ -30,6 +35,12 @@ const exportFeeSchema = new mongoose.Schema(
     },
 
     defaultAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    defaultVat: {
       type: Number,
       required: true,
       min: 0,

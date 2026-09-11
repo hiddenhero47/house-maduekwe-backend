@@ -8,8 +8,19 @@ const SALE_STATUSES = [
   ORDER_STATUS.DELIVERED,
 ];
 
-// Matches how checkoutController computes amountToPay: totalAmount + totalVat + shippingFee
-const revenueExpr = { $add: ["$totalAmount", "$totalVat", "$shippingFee"] };
+// Matches how checkoutController computes amountToPay:
+// totalAmount + totalVat + totalProductTax + shippingFee
+// $ifNull guards documents from before a field existed — aggregation pipelines
+// read raw stored data and skip Mongoose schema defaults, so a missing field
+// would otherwise make the whole $add resolve to null.
+const revenueExpr = {
+  $add: [
+    { $ifNull: ["$totalAmount", 0] },
+    { $ifNull: ["$totalVat", 0] },
+    { $ifNull: ["$totalProductTax", 0] },
+    { $ifNull: ["$shippingFee", 0] },
+  ],
+};
 
 const startOfUTCDay = (date) =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));

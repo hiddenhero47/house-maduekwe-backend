@@ -39,10 +39,20 @@ const shopItemValidationSchema = yup.object({
     .number()
     .required("Price is required")
     .min(1, "Price must be at least 1"),
-  vat: yup
+  productTax: yup
     .number()
-    .required("VAT percentage is required")
-    .min(0, "VAT cannot be negative"),
+    .min(0, "productTax cannot be negative")
+    .default(0)
+    .optional(),
+  weight: yup
+    .object({
+      value: yup.number().min(0, "Weight value cannot be negative").optional(),
+      unit: yup
+        .string()
+        .oneOf(["kg", "g", "lb", "oz"], "Invalid weight unit")
+        .default("kg"),
+    })
+    .optional(),
   currency: yup
     .string()
     .required("Currency is required")
