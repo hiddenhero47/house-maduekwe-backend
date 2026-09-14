@@ -35,6 +35,10 @@ const startServer = async () => {
       "/api/payment/stripe/callback",
       express.raw({ type: "application/json" }),
     );
+    app.use(
+      "/api/shipments/shopify/webhook",
+      express.raw({ type: "application/json" }),
+    );
     const forms = multer();
     app.use(express.json({ limit: "10mb" }));
     app.use(forms.any());
@@ -123,6 +127,8 @@ const startServer = async () => {
     app.use("/api/payment", require("./routes/paymentRoutes"));
     app.use("/api/media", require("./routes/mediaRoutes"));
     app.use("/api/stats", require("./routes/statsRoutes"));
+    app.use("/api/shipping-settings", require("./routes/shippingSettingsRoutes"));
+    app.use("/api/shipments", require("./routes/shipmentRoutes"));
 
     app.use(errorHandler);
 

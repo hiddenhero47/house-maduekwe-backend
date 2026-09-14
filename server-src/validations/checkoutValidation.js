@@ -22,6 +22,10 @@ const checkoutValidationSchema = yup.object({
     .nullable()
     .notRequired()
     .required("Shipping address is required"),
+
+  // Prior token from confirm-checkout — a trust signal only, never the
+  // source of truth for the amounts used to create the order/payment.
+  checkoutToken: yup.string().optional(),
 });
 
 const confirmCheckoutValidation = yup.object({
@@ -44,6 +48,10 @@ const confirmCheckoutValidation = yup.object({
     .nullable()
     .notRequired()
     .optional(),
+
+  // Prior token from a previous confirm-checkout call — reused (if still
+  // valid and inputs unchanged) to avoid re-hitting the shipping provider.
+  checkoutToken: yup.string().optional(),
 });
 
 const guestCheckoutValidationSchema = yup.object({
@@ -123,6 +131,10 @@ const guestCheckoutValidationSchema = yup.object({
       addressLine2: yup.string().trim().default(""),
     })
     .required("Address is required"),
+
+  // Used by both guest-confirm-checkout (to reuse a still-valid prior
+  // quote) and guest-checkout (as a trust signal only).
+  checkoutToken: yup.string().optional(),
 });
 
 module.exports = {

@@ -1,5 +1,9 @@
 const { PaymentProvider } = require("../models/paymentProviderModel");
 const { ExportFee } = require("../models/exportFeeModel");
+const {
+  ShippingSettings,
+  SHIPPING_PROVIDERS,
+} = require("../models/shippingSettingsModel");
 
 const ensureStripePaymentProvider = async () => {
   try {
@@ -112,7 +116,44 @@ const ensureUSExportFee = async () => {
   }
 };
 
+// checkoutController now reads ShippingSettings on every checkout call — if
+// none exists yet, checkout would throw. Ensure a safe default (Internal
+// provider, enabled) exists, same get-or-create pattern as the two helpers
+// above.
+const ensureShippingSettings = async () => {
+  try {
+    const existing = await ShippingSettings.findOne();
+
+    if (existing) {
+      return {
+        task: "Ensure Shipping Settings",
+        status: "success",
+        message: "Shipping settings already exist",
+      };
+    }
+
+    await ShippingSettings.create({
+      activeProvider: SHIPPING_PROVIDERS.INTERNAL,
+      enabled: true,
+      autoCreateShipment: false,
+    });
+
+    return {
+      task: "Ensure Shipping Settings",
+      status: "success",
+      message: "Default shipping settings created (provider: internal)",
+    };
+  } catch (error) {
+    return {
+      task: "Ensure Shipping Settings",
+      status: "failed",
+      message: error.message,
+    };
+  }
+};
+
 module.exports = {
   ensureStripePaymentProvider,
   ensureUSExportFee,
+  ensureShippingSettings,
 };
