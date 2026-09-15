@@ -22,6 +22,9 @@ const checkoutValidationSchema = yup.object({
     .nullable()
     .notRequired()
     .required("Shipping address is required"),
+
+  // Trust signal only — never the source of truth for order/payment amounts.
+  checkoutToken: yup.string().optional(),
 });
 
 const confirmCheckoutValidation = yup.object({
@@ -44,6 +47,9 @@ const confirmCheckoutValidation = yup.object({
     .nullable()
     .notRequired()
     .optional(),
+
+  // Reused if still valid and inputs unchanged, to avoid re-quoting.
+  checkoutToken: yup.string().optional(),
 });
 
 const guestCheckoutValidationSchema = yup.object({
@@ -123,6 +129,9 @@ const guestCheckoutValidationSchema = yup.object({
       addressLine2: yup.string().trim().default(""),
     })
     .required("Address is required"),
+
+  // Shared by guest-confirm-checkout (quote reuse) and guest-checkout (trust signal).
+  checkoutToken: yup.string().optional(),
 });
 
 module.exports = {

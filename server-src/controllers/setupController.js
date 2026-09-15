@@ -2,6 +2,7 @@ const { ensureAdminExists } = require("../helpers/ensureAdmin");
 const {
   ensureStripePaymentProvider,
   ensureUSExportFee,
+  ensureShippingSettings,
 } = require("../helpers/appSetup");
 const Cart = require("../models/cartModel");
 const asyncHandler = require("express-async-handler");
@@ -23,6 +24,7 @@ const runSetupScripts = async (req, res) => {
   logs.push(await ensureAdminExists());
   logs.push(await ensureStripePaymentProvider());
   logs.push(await ensureUSExportFee());
+  logs.push(await ensureShippingSettings());
   // later: logs.push(await anotherSetupTask());
 
   res.json({
@@ -85,47 +87,53 @@ const normalizeAddresses = asyncHandler(async (req, res) => {
 // @desc    Backfill old data for the productTax/weight/defaultVat schema changes
 // @route   POST /api/setup/migrate-tax-vat-fields
 // @access  Private/Admin (time-window guarded, see setupRoutes)
+// Rough placeholder, not a measured value — refine per product later.
+const DEFAULT_PLACEHOLDER_WEIGHT = { value: 0.2, unit: "kg" };
+
 const migrateTaxAndVatFields = asyncHandler(async (req, res) => {
-  // 1️⃣ ExportFee.defaultVat is now required — backfill any country created before
-  //    it existed. Defaults to 0; this is a placeholder, NOT a real VAT rate.
   const exportFeeResult = await ExportFee.updateMany(
     { defaultVat: { $exists: false } },
     { $set: { defaultVat: 0 } },
   );
 
-  // 2️⃣ ShopItem.productTax replaces the old universal "vat" field. Backfill it to 0
-  //    (most products won't have a special tax), then drop the orphaned "vat" field
-  //    so it doesn't linger under a misleading name. Old vat values are intentionally
-  //    NOT copied into productTax — that field used to mean general VAT, not a
-  //    per-product special tax, so carrying the value over would misrepresent intent.
   const shopItemTaxResult = await ShopItem.updateMany(
     { productTax: { $exists: false } },
     { $set: { productTax: 0 } },
   );
 
+  // strict: false needed — Mongoose silently drops $unset on fields no
+  // longer in the schema, so without it "vat" never actually gets removed.
   const shopItemVatCleanupResult = await ShopItem.updateMany(
     { vat: { $exists: true } },
     { $unset: { vat: "" } },
+    { strict: false },
   );
 
-  // 3️⃣ Order.totalProductTax is new — backfill orders placed before it existed.
-  //    Mongoose's schema default only applies when a document is hydrated/saved
-  //    through Mongoose; raw aggregation reads (e.g. the stats API) need the field
-  //    to actually exist in the stored document.
   const orderResult = await Order.updateMany(
     { totalProductTax: { $exists: false } },
     { $set: { totalProductTax: 0 } },
   );
 
+  const shopItemWeightResult = await ShopItem.updateMany(
+    {
+      $or: [
+        { weight: { $exists: false } },
+        { "weight.value": { $exists: false } },
+      ],
+    },
+    { $set: { weight: DEFAULT_PLACEHOLDER_WEIGHT } },
+  );
+
   res.json({
     success: true,
     message:
-      "Migration complete. ⚠️ ExportFee.defaultVat was backfilled to 0 as a placeholder — review and set the real VAT rate per country before relying on it. ShopItem.weight was intentionally left untouched; it must be filled in per product.",
+      "Migration complete. ⚠️ ExportFee.defaultVat was backfilled to 0 as a placeholder — review and set the real VAT rate per country before relying on it. ⚠️ ShopItem.weight was backfilled with a rough average-shirt placeholder (0.2kg) — review per product before relying on it for real shipping quotes.",
     results: {
       exportFeesDefaultVatBackfilled: exportFeeResult.modifiedCount,
       shopItemsProductTaxBackfilled: shopItemTaxResult.modifiedCount,
       shopItemsOldVatFieldRemoved: shopItemVatCleanupResult.modifiedCount,
       ordersTotalProductTaxBackfilled: orderResult.modifiedCount,
+      shopItemsWeightBackfilled: shopItemWeightResult.modifiedCount,
     },
   });
 });

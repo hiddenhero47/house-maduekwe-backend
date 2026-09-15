@@ -168,6 +168,13 @@ const createShopItem = asyncHandler(async (req, res) => {
   // ✅ Validate request body with Yup
   await shopItemValidationSchema.validate(itemData, { abortEarly: false });
 
+  // 🔧 base64/url (if present) live inside the parsed "data" JSON field,
+  // not at req.body.base64/url — but uploadHandler only ever looks at
+  // req.body.base64/url directly. Sync them so the image the gate check
+  // above found is the same one that actually gets uploaded.
+  if (base64 !== undefined) req.body.base64 = base64;
+  if (url !== undefined) req.body.url = url;
+
   // ✅ Upload images (with validation)
   const fileData = await uploadHandler({
     req,
@@ -243,6 +250,11 @@ const updateShopItem = asyncHandler(async (req, res) => {
 
   // ✅ Handle new image uploads
   if (req.files || base64 || url) {
+    // 🔧 Same sync as createShopItem — base64/url come from the parsed
+    // "data" JSON field, but uploadHandler reads req.body.base64/url.
+    if (base64 !== undefined) req.body.base64 = base64;
+    if (url !== undefined) req.body.url = url;
+
     const fileData = await uploadHandler({
       req,
       schema: fileValidationSchema,

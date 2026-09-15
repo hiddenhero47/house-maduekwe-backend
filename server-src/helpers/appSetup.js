@@ -1,5 +1,9 @@
 const { PaymentProvider } = require("../models/paymentProviderModel");
 const { ExportFee } = require("../models/exportFeeModel");
+const {
+  ShippingSettings,
+  SHIPPING_PROVIDERS,
+} = require("../models/shippingSettingsModel");
 
 const ensureStripePaymentProvider = async () => {
   try {
@@ -69,8 +73,7 @@ const ensureUSExportFee = async () => {
 
     let needsSave = false;
 
-    // 🔧 Backfill defaultVat for export fees created before defaultVat existed —
-    // it's now a required field, so any .save() below would otherwise throw.
+    // Backfill defaultVat for docs created before it was required.
     if (typeof exportFee.defaultVat !== "number") {
       exportFee.defaultVat = defaultVatRate;
       needsSave = true;
@@ -112,7 +115,41 @@ const ensureUSExportFee = async () => {
   }
 };
 
+// checkout reads ShippingSettings on every call — ensure a default exists.
+const ensureShippingSettings = async () => {
+  try {
+    const existing = await ShippingSettings.findOne();
+
+    if (existing) {
+      return {
+        task: "Ensure Shipping Settings",
+        status: "success",
+        message: "Shipping settings already exist",
+      };
+    }
+
+    await ShippingSettings.create({
+      activeProvider: SHIPPING_PROVIDERS.INTERNAL,
+      enabled: true,
+      autoCreateShipment: false,
+    });
+
+    return {
+      task: "Ensure Shipping Settings",
+      status: "success",
+      message: "Default shipping settings created (provider: internal)",
+    };
+  } catch (error) {
+    return {
+      task: "Ensure Shipping Settings",
+      status: "failed",
+      message: error.message,
+    };
+  }
+};
+
 module.exports = {
   ensureStripePaymentProvider,
   ensureUSExportFee,
+  ensureShippingSettings,
 };

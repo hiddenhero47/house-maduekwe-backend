@@ -1,0 +1,119 @@
+const express = require("express");
+const multer = require("multer");
+const path = require("path");
+const { errorHandler } = require("./middleware/errorMiddleware");
+const handleCors = require("./middleware/corsMiddleware");
+const { sendTemplatedEmail } = require("./helpers/emailSender");
+const cronStatus = require("./jobs/status");
+
+// Builds the Express app without connecting the DB, loading email
+// templates, starting cron jobs, or calling .listen() — lets tests use it
+// directly via supertest.
+const createApp = () => {
+  const app = express();
+
+  const publicPath = path.join(__dirname, "public");
+
+  // middleware for body parser — raw body scoping MUST come before the
+  // general express.json() below, order matters here.
+  app.use(
+    "/api/payment/stripe/callback",
+    express.raw({ type: "application/json" }),
+  );
+  app.use(
+    "/api/shipments/shopify/webhook",
+    express.raw({ type: "application/json" }),
+  );
+  const forms = multer();
+  app.use(express.json({ limit: "10mb" }));
+  app.use(forms.any());
+  app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+  app.use(handleCors);
+  app.use(
+    "/videos",
+    express.static(path.join(__dirname, "public/videos"), {
+      maxAge: "365d",
+      immutable: true,
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    }),
+  );
+
+  // Declaring Static Folder
+  app.use(express.static(path.join(__dirname, "public")));
+  app.use(
+    "/public",
+    express.static(publicPath, {
+      index: false, // prevent directory listing
+      dotfiles: "ignore", // ignore .env, .gitignore if misplaced
+      setHeaders: (res, filePath) => {
+        // Optional security headers
+        res.set("X-Content-Type-Options", "nosniff");
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === ".js" || ext === ".html") {
+          res.setHeader("Content-Disposition", "attachment");
+          res.setHeader("Content-Type", "text/plain");
+        }
+      },
+    }),
+  );
+
+  // test route
+  app.get("/api/test", (req, res) => {
+    res.json({ message: "Hello from backend 😊 !" });
+  });
+
+  // test email
+  app.get("/api/test-email", async (req, res) => {
+    try {
+      const result = await sendTemplatedEmail({
+        to: "hiddenhero47pro@gmail.com",
+        subject: "Testing Email Templates",
+        template: "test",
+        variables: {
+          name: "Charles",
+          amount: 30000,
+          orderId: "ORD-847392",
+          email: "hiddenhero47pro@gmail.com",
+        },
+      });
+
+      res.json(result);
+    } catch (err) {
+      res.status(500).json(err);
+    }
+  });
+
+  // job health route
+  app.get("/api/health", (req, res) => {
+    res.json({
+      server: "running",
+      cron: cronStatus,
+    });
+  });
+
+  app.use("/api/setup", require("./routes/setupRoutes"));
+  app.use("/api/users", require("./routes/userRoutes"));
+  app.use("/api/addresses", require("./routes/addressRoutes"));
+  app.use("/api/attributes", require("./routes/attributeRoutes"));
+  app.use("/api/categories", require("./routes/categoryRoutes"));
+  app.use("/api/shop-items", require("./routes/shopItemRoutes"));
+  app.use("/api/cart", require("./routes/cartRoutes"));
+  app.use("/api/item-groups", require("./routes/itemGroupRoutes"));
+  app.use("/api/reviews", require("./routes/reviewRoutes"));
+  app.use("/api/export-fees", require("./routes/exportFeeRoutes"));
+  app.use("/api/payment-providers", require("./routes/paymentProviderRoutes"));
+  app.use("/api/orders", require("./routes/orderRoutes"));
+  app.use("/api/payment", require("./routes/paymentRoutes"));
+  app.use("/api/media", require("./routes/mediaRoutes"));
+  app.use("/api/stats", require("./routes/statsRoutes"));
+  app.use("/api/shipping-settings", require("./routes/shippingSettingsRoutes"));
+  app.use("/api/shipments", require("./routes/shipmentRoutes"));
+
+  app.use(errorHandler);
+
+  return app;
+};
+
+module.exports = createApp;
