@@ -1,11 +1,9 @@
 const { ExportFee } = require("../../models/exportFeeModel");
 const { DEFAULT_CURRENCY } = require("../../utilities/appConst");
 
-// Wraps the exact shipping-fee lookup that used to live directly in
-// checkoutController.js's resolveShippingFee(). Destination VAT is
-// deliberately NOT resolved here — VAT is a House Maduekwe/tax concern,
-// sourced from the same ExportFee document but independent of which
-// shipping provider is active (see checkoutController's resolveDestinationVat).
+// VAT is resolved separately (checkoutController's resolveDestinationVat) —
+// it's tax, not a shipping-provider concern, even though it reads the same
+// ExportFee document.
 const getQuote = async ({ destination, currency }) => {
   const { country, state } = destination || {};
 

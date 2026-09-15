@@ -1,9 +1,7 @@
 const crypto = require("crypto");
 
-// Same "verify signature → trust → let our own code re-query the provider"
-// philosophy as middleware/webhookMiddleware.js (used for Stripe payment
-// webhooks) — kept as a separate file since shipment webhooks are a
-// different domain (fulfillment/tracking, not payment).
+// Same verify-then-trust philosophy as middleware/webhookMiddleware.js
+// (Stripe) — kept separate since this is a different domain (shipments).
 const verifyShipmentWebhook = (req, res, next) => {
   const { provider } = req.params;
 

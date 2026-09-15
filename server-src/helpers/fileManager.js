@@ -286,4 +286,5 @@ module.exports = {
   updateFile,
   getFiles,
   deleteAllFiles,
+  MEDIA_MAP,
 };

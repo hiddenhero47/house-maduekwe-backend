@@ -132,7 +132,7 @@ userSchema.pre("save", async function (next) {
 
       if (existingSuperAdmin || !this._adminCreation) {
         const error = new Error("Only one Super Admin can exist in the system");
-        error.status = 403;
+        error.statusCode = 403;
         return next(error);
       }
     }
@@ -140,7 +140,7 @@ userSchema.pre("save", async function (next) {
     // 🔒 Block ADMIN creation unless explicitly allowed
     if (this.role === ROLE.ADMIN && !this._adminCreation) {
       const error = new Error("Admin creation not allowed");
-      error.status = 403;
+      error.statusCode = 403;
       return next(error);
     }
 

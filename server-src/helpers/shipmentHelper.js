@@ -35,15 +35,9 @@ const sendOrderShippedEmail = async (order) => {
   });
 };
 
-// Applies a Shipment's current state onto its Order — flips Order.status to
-// SHIPPED once a carrier + tracking number actually exist, and to DELIVERED
-// once the shipment is delivered. Used by both the manual admin
-// "create shipment" action and the provider webhook handler, so status
-// progression behaves identically regardless of which one drove it.
-//
-// Order.shippingDetails requires both company and trackingNumber (see
-// orderModel.js validator) — a shipment created without a tracking number
-// yet (e.g. label pending) intentionally does NOT flip the order yet.
+// Flips Order.status to SHIPPED once a carrier + tracking number exist, and
+// to DELIVERED once the shipment is delivered. Shared by the manual admin
+// action and the webhook handler.
 const applyShipmentStatusToOrder = async ({ order, shipment, sendEmail = true }) => {
   const alreadyShippedOrFurther =
     order.status === ORDER_STATUS.SHIPPED ||

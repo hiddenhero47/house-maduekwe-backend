@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
-// Full roster of providers this architecture is designed for — not all of
-// them are wired up in providers/shippingProviders/index.js yet.
+// Full roster this architecture is designed for — not all registered yet.
 const SHIPPING_PROVIDERS = {
   INTERNAL: "internal",
   SHOPIFY: "shopify",
@@ -9,14 +8,10 @@ const SHIPPING_PROVIDERS = {
   FEDEX: "fedex",
 };
 
-// Only providers actually registered in providers/shippingProviders/index.js
-// may be selected here — selecting a disabled one would make checkout throw
-// "Unknown shipping provider". Shopify is disabled for now; re-add it here
-// once shopifyProvider.js is re-registered.
+// Only providers actually registered in providers/shippingProviders/index.js.
 const ENABLED_SHIPPING_PROVIDERS = [SHIPPING_PROVIDERS.INTERNAL];
 
-// Singleton-style document — one settings row for the whole app.
-// See helpers/shippingSettingsHelper.js for the get-or-create accessor.
+// Singleton — one settings row for the whole app.
 const shippingSettingsSchema = new mongoose.Schema(
   {
     activeProvider: {

@@ -1,20 +1,9 @@
 const internalProvider = require("./internalProvider");
-// 🛑 Shopify disabled for now — focus is on getting the Internal provider
-// solid first. shopifyProvider.js is untouched and ready to be re-registered
-// below when we pick this back up.
+// Shopify disabled for now — see docs/shipping-provider-architecture-plan.md
 // const shopifyProvider = require("./shopifyProvider");
 
-// Every provider module must implement:
-//   getQuote({ items, destination, origin, currency })
-//     -> { shippingFee, currency, raw }
-//   createShipment({ order, items, destination, origin, manualDetails })
-//     -> { providerShipmentId, carrier, trackingNumber, trackingUrl, status, shippingCost, currency, raw }
-//   getShipment({ providerShipmentId, ...providerSpecificRefs })
-//     -> { status, trackingNumber, trackingUrl, raw }
-//
-// Callers (checkoutController, shipmentController) only ever talk to this
-// registry — no provider name should ever be branched on outside of here
-// (doc §17).
+// Each provider implements getQuote/createShipment/getShipment. Callers
+// should only ever go through this registry, never branch on provider name.
 const providers = {
   [internalProvider.name]: internalProvider,
   // [shopifyProvider.name]: shopifyProvider,

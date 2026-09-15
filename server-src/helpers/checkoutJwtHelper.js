@@ -11,12 +11,8 @@ const attributeId = (a) => {
   return a.toString();
 };
 
-// Binds a checkout token to the exact inputs it was quoted for — items,
-// quantities, selected attributes, address, and active provider — so a
-// later request can detect whether anything changed since the quote was
-// signed. Works the same whether `items` is the raw cart-shaped list or the
-// order-item snapshot shape, since both carry `shopItem`/`quantity`/
-// `selectedAttributes`.
+// Hashes the checkout inputs so a later request can detect if anything
+// changed since the quote was signed.
 const buildCheckoutHash = ({ items, address, provider }) => {
   const normalized = {
     items: (items || [])
@@ -52,10 +48,8 @@ const signCheckoutToken = (payload) => {
   });
 };
 
-// Returns the decoded payload, or null if missing/invalid/expired. Never
-// throws — a bad/absent token should fall back to a fresh calculation
-// rather than block the request (see docs/shipping-provider-architecture-plan.md,
-// open question 4).
+// Returns the decoded payload, or null if missing/invalid/expired — never
+// throws, so callers just fall back to a fresh calculation.
 const verifyCheckoutToken = (token) => {
   if (!token) return null;
 

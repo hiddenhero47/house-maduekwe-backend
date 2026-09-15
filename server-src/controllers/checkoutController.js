@@ -38,9 +38,7 @@ const confirmCheckout = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  // 🔁 Reuse the prior quote if the client sends back its last token and
-  // nothing about the checkout inputs changed — avoids re-hitting an
-  // external shipping provider on every re-visit of the confirm screen.
+  // 🔁 Reuse the prior quote if the token still matches the current inputs.
   const previousToken = verifyCheckoutToken(req.body.checkoutToken);
 
   const summary = await buildCheckoutSummary(req, {
@@ -119,10 +117,8 @@ const checkout = asyncHandler(async (req, res) => {
   try {
     session.startTransaction();
 
-    // ⚠️ No allowQuoteReuse here — checkout always recalculates everything
-    // fresh (fresh shipping quote, fresh VAT, fresh stock check). The
-    // checkout token is never trusted as the source of these numbers, only
-    // as a signal that this request followed a legitimate confirm step.
+    // ⚠️ No allowQuoteReuse — checkout always recalculates fresh; the token
+    // is only a trust signal, never the source of these numbers.
     const summary = await buildCheckoutSummary(req);
 
     const previousToken = verifyCheckoutToken(req.body.checkoutToken);
@@ -340,7 +336,6 @@ const checkout = asyncHandler(async (req, res) => {
 });
 
 // @desc Confirmation & agreement on guest orders — mirrors confirmCheckout
-// so guest checkout also gets a short-lived checkout token.
 // @route POST /api/orders/guest-confirm-checkout
 // @access Public
 const guestConfirmCheckout = asyncHandler(async (req, res) => {
@@ -445,8 +440,7 @@ const guestCheckout = asyncHandler(async (req, res) => {
   try {
     session.startTransaction();
 
-    // ⚠️ No allowQuoteReuse here — same as authenticated checkout, this
-    // always recalculates fresh regardless of any token the client sends.
+    // ⚠️ No allowQuoteReuse — same as authenticated checkout, always fresh.
     const summary = await buildGuestCheckoutSummary(req);
 
     const previousToken = verifyCheckoutToken(req.body.checkoutToken);
@@ -987,9 +981,7 @@ const checkoutItemsTotals = (items) => {
   };
 };
 
-// Destination VAT is always sourced from ExportFee, regardless of which
-// shipping provider is active — VAT is a House Maduekwe/tax concern,
-// decoupled from whichever carrier physically ships the package.
+// VAT always comes from ExportFee, independent of the shipping provider.
 const resolveDestinationVat = async ({ country, state }) => {
   if (!country) {
     throw new Error("Shipping country is required");
@@ -1021,13 +1013,8 @@ const resolveDestinationVat = async ({ country, state }) => {
   return { vatRate };
 };
 
-// Resolves the customer-facing shipping fee via the active shipping
-// provider. Only confirm-checkout (allowQuoteReuse: true) may reuse a prior
-// still-valid quote carried in a checkout token, to avoid re-hitting an
-// external provider every time the confirm screen is re-submitted — the
-// final checkout/guest-checkout call always fetches a fresh quote, since the
-// token is never the source of truth for the numbers used to create the
-// Order/Payment (see docs/shipping-provider-architecture-plan.md, open question 4).
+// Only confirm-checkout (allowQuoteReuse: true) may reuse a prior quote from
+// a checkout token — checkout itself always fetches fresh.
 const resolveShippingQuote = async ({
   items,
   address,
@@ -1299,4 +1286,5 @@ module.exports = {
   guestCheckout,
   validateGroupedVariants,
   validateStockStateful,
+  checkoutItemsTotals, // exported for direct unit testing — pure function, no DB
 };

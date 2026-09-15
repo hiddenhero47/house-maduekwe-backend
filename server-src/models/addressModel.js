@@ -59,7 +59,7 @@ addressSchema.pre("save", async function (next) {
     const error = new Error(
       `You can only have a maximum of ${MAX_ADDRESSES} addresses`,
     );
-    error.status = 400;
+    error.statusCode = 400;
     return next(error);
   }
 

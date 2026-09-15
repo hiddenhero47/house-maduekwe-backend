@@ -5,6 +5,7 @@ const {
   deleteFile,
   getFiles,
   deleteAllFiles,
+  MEDIA_MAP,
 } = require("../helpers/fileManager");
 
 // @desc   Get media files by type
@@ -81,10 +82,7 @@ const deleteMedia = asyncHandler(async (req, res) => {
 
     const fileName = path.basename(url);
 
-    const filePath = path.join(
-      type === "pictures" ? PICTURES_DIR : VIDEOS_DIR,
-      fileName,
-    );
+    const filePath = path.join(MEDIA_MAP[type], fileName);
 
     const deleted = await deleteFile(filePath);
 

@@ -73,8 +73,7 @@ const ensureUSExportFee = async () => {
 
     let needsSave = false;
 
-    // 🔧 Backfill defaultVat for export fees created before defaultVat existed —
-    // it's now a required field, so any .save() below would otherwise throw.
+    // Backfill defaultVat for docs created before it was required.
     if (typeof exportFee.defaultVat !== "number") {
       exportFee.defaultVat = defaultVatRate;
       needsSave = true;
@@ -116,10 +115,7 @@ const ensureUSExportFee = async () => {
   }
 };
 
-// checkoutController now reads ShippingSettings on every checkout call — if
-// none exists yet, checkout would throw. Ensure a safe default (Internal
-// provider, enabled) exists, same get-or-create pattern as the two helpers
-// above.
+// checkout reads ShippingSettings on every call — ensure a default exists.
 const ensureShippingSettings = async () => {
   try {
     const existing = await ShippingSettings.findOne();

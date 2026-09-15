@@ -27,9 +27,8 @@ const shipmentSchema = new mongoose.Schema(
       required: true,
     },
 
-    // The external provider's own id for this shipment/fulfillment. Distinct
-    // from this document's own _id (House Maduekwe's id) and from
-    // trackingNumber (the physical carrier's id) — see docs/shipping-provider-architecture-plan.md §9.
+    // The external provider's own id — distinct from this doc's _id and
+    // from trackingNumber (the carrier's id).
     providerShipmentId: {
       type: String,
       index: true,

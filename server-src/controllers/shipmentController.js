@@ -19,8 +19,7 @@ const buildProviderItems = (items = []) =>
     ),
   }));
 
-// @desc Create a shipment for a paid order via the active shipping provider
-// (manual, admin-triggered — see docs/shipping-provider-architecture-plan.md Phase 3/5)
+// @desc Create a shipment for a paid order (manual, admin-triggered)
 // @route POST /api/shipments/orders/:id
 // @access Private (Admin)
 const createShipmentForOrder = asyncHandler(async (req, res) => {
@@ -54,11 +53,7 @@ const createShipmentForOrder = asyncHandler(async (req, res) => {
 
   const settings = await getShippingSettings();
 
-  // The provider actually quoted at checkout — order.shippingFee was
-  // computed against its rate, so fulfillment must go through the same one.
-  // getShippingProvider throws if it's missing/unregistered (e.g. a legacy
-  // order or a provider that's since been disabled) — that's the right
-  // outcome here rather than silently switching providers on an admin.
+  // Use the provider actually quoted at checkout, not whatever's active now.
   const activeProvider = order.shippedBy?.toLowerCase();
   const provider = getShippingProvider(activeProvider);
 
@@ -88,9 +83,7 @@ const createShipmentForOrder = asyncHandler(async (req, res) => {
     },
   });
 
-  // Shopify's own order id is needed later to poll/verify this fulfillment
-  // via getShipment — keep it alongside the order without touching the
-  // Order schema itself.
+  // Keep Shopify's order id around for later getShipment polling.
   if (result.shopifyOrderId) {
     order.extraInfo = {
       ...(order.extraInfo || {}),
@@ -104,12 +97,7 @@ const createShipmentForOrder = asyncHandler(async (req, res) => {
   res.status(201).json({ shipment, order });
 });
 
-// @desc Manually update a shipment's status (e.g. picked_up, in_transit,
-// delivered). Provider-agnostic on purpose — no restriction to "internal"
-// only, an admin can override/correct any shipment regardless of who
-// created it. Setting status to "delivered" also flips the Order to
-// DELIVERED (via applyShipmentStatusToOrder, the same helper the Shopify
-// webhook uses).
+// @desc Manually update a shipment's status; "delivered" also flips the order
 // @route PATCH /api/shipments/orders/:id/status
 // @access Private (Admin)
 const updateShipmentStatus = asyncHandler(async (req, res) => {

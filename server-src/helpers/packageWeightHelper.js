@@ -11,9 +11,8 @@ const toKg = (value, unit) => {
   return Number(value) * factor;
 };
 
-// Sums each order item's product weight × quantity, normalized to kg.
-// Items with no weight set contribute 0 — callers decide whether that's
-// acceptable (see docs/shipping-provider-architecture-plan.md, open question 5).
+// Sums each item's weight × quantity, normalized to kg. Items with no
+// weight set contribute 0.
 const getOrderPackageWeightKg = (items = []) => {
   return items.reduce((totalKg, item) => {
     const weight = item.shopItem?.weight;

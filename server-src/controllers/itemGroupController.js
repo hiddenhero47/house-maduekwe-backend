@@ -1,4 +1,5 @@
 const asyncHandler = require("express-async-handler");
+const mongoose = require("mongoose");
 const ItemGroup = require("../models/itemGroupModel");
 const { ShopItem } = require("../models/shopItemModel");
 
@@ -107,7 +108,13 @@ const updateItemGroup = asyncHandler(async (req, res) => {
       throw new Error("One or more shop items do not exist");
     }
 
-    group.shopItems = [...group?.shopItems, shopItems];
+    const existingIds = new Set(group.shopItems.map((item) => item.toString()));
+
+    const newItems = shopItems.filter(
+      (item) => !existingIds.has(item.toString()),
+    );
+
+    group.shopItems.push(...newItems);
   }
 
   await group.save();

@@ -8,11 +8,9 @@ const SALE_STATUSES = [
   ORDER_STATUS.DELIVERED,
 ];
 
-// Matches how checkoutController computes amountToPay:
-// totalAmount + totalVat + totalProductTax + shippingFee
-// $ifNull guards documents from before a field existed — aggregation pipelines
-// read raw stored data and skip Mongoose schema defaults, so a missing field
-// would otherwise make the whole $add resolve to null.
+// $ifNull guards against docs from before a field existed — aggregation
+// reads raw data and skips Mongoose defaults, so a missing field would
+// otherwise null out the whole $add.
 const revenueExpr = {
   $add: [
     { $ifNull: ["$totalAmount", 0] },

@@ -3,10 +3,8 @@ const {
   SHIPPING_PROVIDERS,
 } = require("../models/shippingSettingsModel");
 
-// Settings is a singleton — this returns the one document, creating a safe
-// default (Internal provider, enabled) if none exists yet. Mirrors the same
-// get-or-create pattern already used for ExportFee/PaymentProvider in
-// helpers/appSetup.js.
+// Settings is a singleton — returns the one document, creating a default if
+// none exists yet.
 const getShippingSettings = async () => {
   let settings = await ShippingSettings.findOne();
 

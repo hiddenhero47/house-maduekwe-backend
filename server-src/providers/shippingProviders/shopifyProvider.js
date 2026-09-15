@@ -1,25 +1,10 @@
 const { shopifyAdminClient } = require("../../config/shopify");
 const internalProvider = require("./internalProvider");
 
-// ⚠️ IMPORTANT DESIGN NOTE — read before changing this file.
-//
-// Shopify's real-time rate-shopping APIs (Storefront/Cart) can only quote
-// shipping for products that exist in THAT Shopify store's own catalog.
-// House Maduekwe's catalog lives in MongoDB and is not synced to Shopify —
-// syncing it would be a real project of its own and is out of scope here.
-//
-// So in this first pass, "shopify" as the active shipping provider means:
-// the CUSTOMER-FACING quote still comes from the Internal/ExportFee rate
-// table (identical numbers to what "internal" would charge), but once an
-// order is PAID, the actual physical shipment — order creation, fulfillment,
-// label/tracking — is created and tracked through Shopify's Admin API.
-// That's the part Shopify is actually good at, and the part this adapter
-// implements for real. See docs/shipping-provider-architecture-plan.md.
-//
-// This MUST be verified against a real Shopify development store (doc §16)
-// before relying on it in production — whether label generation actually
-// works for your fulfillment origin depends on your Shopify plan/region
-// (doc §7), which cannot be confirmed from here.
+// Shopify can't quote rates for products outside its own catalog, so the
+// customer-facing quote still comes from the Internal/ExportFee table;
+// Shopify only handles fulfillment (order/label/tracking) after payment.
+// See docs/shipping-provider-architecture-plan.md.
 const getQuote = async (data) => internalProvider.getQuote(data);
 
 const buildLineItems = (items = []) =>
@@ -33,10 +18,9 @@ const buildLineItems = (items = []) =>
     grams: item.weightGrams || 0,
   }));
 
-// Creates a real Order in Shopify (via custom line items — no product sync
-// needed) and immediately requests a Fulfillment against it. This mirror
-// order is NOT House Maduekwe's source of truth — it exists purely so
-// Shopify can produce a label/tracking number and send us webhook events.
+// Creates a mirror Order + Fulfillment in Shopify (custom line items, no
+// product sync needed) purely to get a label/tracking number and webhooks —
+// not House Maduekwe's source of truth.
 const createShipment = async ({ order, items, destination, manualDetails }) => {
   const orderPayload = {
     order: {
