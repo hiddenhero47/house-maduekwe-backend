@@ -224,6 +224,68 @@ describe("PATCH /api/shipments/orders/:id/status (update)", () => {
   });
 });
 
+describe("GET /api/shipments (list)", () => {
+  it("lists shipments newest first, paginated", async () => {
+    const admin = await createAdmin();
+    const token = generateToken(admin);
+
+    for (let i = 0; i < 3; i++) {
+      const buyer = await createUser();
+      const shopItem = await createShopItem();
+      const order = await createOrder({ user: buyer, shopItem });
+
+      await request(app)
+        .post(`/api/shipments/orders/${order._id}`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ carrier: "DHL", trackingNumber: `TRACK${i}` });
+    }
+
+    const res = await request(app)
+      .get("/api/shipments?limit=2&page=1")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(2);
+    expect(res.body.pagination.total).toBe(3);
+    expect(res.body.pagination.totalPages).toBe(2);
+    expect(res.body.data[0].order.consigneesName).toBeDefined();
+  });
+
+  it("filters by status", async () => {
+    const admin = await createAdmin();
+    const token = generateToken(admin);
+    const buyer = await createUser();
+    const shopItem = await createShopItem();
+    const order = await createOrder({ user: buyer, shopItem });
+
+    await request(app)
+      .post(`/api/shipments/orders/${order._id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ carrier: "DHL", trackingNumber: "TRACK1" });
+
+    const matching = await request(app)
+      .get("/api/shipments?status=label_created")
+      .set("Authorization", `Bearer ${token}`);
+    expect(matching.body.data).toHaveLength(1);
+
+    const nonMatching = await request(app)
+      .get("/api/shipments?status=delivered")
+      .set("Authorization", `Bearer ${token}`);
+    expect(nonMatching.body.data).toHaveLength(0);
+  });
+
+  it("rejects a non-admin caller", async () => {
+    const user = await createUser();
+    const token = generateToken(user);
+
+    const res = await request(app)
+      .get("/api/shipments")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("GET /api/shipments/orders/:id", () => {
   it("returns the shipment for an order", async () => {
     const admin = await createAdmin();
