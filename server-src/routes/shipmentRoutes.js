@@ -3,6 +3,7 @@ const {
   createShipmentForOrder,
   updateShipmentStatus,
   getShipmentForOrder,
+  getAllShipments,
   processShopifyShipmentEvent,
 } = require("../controllers/shipmentController");
 const verifyShipmentWebhook = require("../middleware/shipmentWebhookMiddleware");
@@ -13,6 +14,7 @@ const router = express.Router();
 
 const adminOnly = secureRole([ROLE.ADMIN, ROLE.SUPER_ADMIN]);
 
+router.get("/", adminOnly, getAllShipments);
 router.post("/orders/:id", adminOnly, createShipmentForOrder);
 router.get("/orders/:id", adminOnly, getShipmentForOrder);
 router.patch("/orders/:id/status", adminOnly, updateShipmentStatus);

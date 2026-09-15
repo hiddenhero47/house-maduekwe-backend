@@ -141,6 +141,67 @@ const updateShipmentStatus = asyncHandler(async (req, res) => {
   res.status(200).json({ shipment, order });
 });
 
+// @desc Get all shipments, filterable by status/date range
+// @route GET /api/shipments
+// @access Private (Admin)
+const getAllShipments = asyncHandler(async (req, res) => {
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Number(req.query.limit) || 20, 100);
+  const skip = (page - 1) * limit;
+
+  const { status, from, to } = req.query;
+
+  const filter = {};
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (from || to) {
+    filter.createdAt = {};
+
+    if (from) {
+      const start = new Date(from);
+      if (!isNaN(start)) {
+        filter.createdAt.$gte = start;
+      }
+    }
+
+    if (to) {
+      const end = new Date(to);
+      if (!isNaN(end)) {
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+
+    if (Object.keys(filter.createdAt).length === 0) {
+      delete filter.createdAt;
+    }
+  }
+
+  const [shipments, total] = await Promise.all([
+    Shipment.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("order", "consigneesName status totalAmount currency")
+      .lean(),
+
+    Shipment.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    data: shipments,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
+});
+
 // @desc Get the shipment for an order
 // @route GET /api/shipments/orders/:id
 // @access Private (Admin)
@@ -221,5 +282,6 @@ module.exports = {
   createShipmentForOrder,
   updateShipmentStatus,
   getShipmentForOrder,
+  getAllShipments,
   processShopifyShipmentEvent,
 };
