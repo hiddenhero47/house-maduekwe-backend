@@ -38,7 +38,7 @@ router.post(
 
 router.post(
   "/migrate-tax-vat-fields",
-  timeWindowGuard("2026-09-13T00:00:00Z", 24),
+  timeWindowGuard("2026-09-15T00:00:00Z", 24),
   migrateTaxAndVatFields,
 );
 
