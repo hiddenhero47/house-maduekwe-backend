@@ -12,6 +12,15 @@ const {
   guestCheckoutValidationSchema,
 } = require("../validations/checkoutValidation");
 const { buildValidatedCartItems } = require("../helpers/cartHelper");
+const { SHIPPING_PROVIDERS } = require("../models/shippingSettingsModel");
+const { getShippingSettings } = require("../helpers/shippingSettingsHelper");
+const { getShippingProvider } = require("../providers/shippingProviders");
+const { toKg, kgToGrams } = require("../helpers/packageWeightHelper");
+const {
+  buildCheckoutHash,
+  signCheckoutToken,
+  verifyCheckoutToken,
+} = require("../helpers/checkoutJwtHelper");
 
 // @desc Confirmation & agreement on orders
 // @route POST /api/orders/confirm-checkout
@@ -29,7 +38,27 @@ const confirmCheckout = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const summary = await buildCheckoutSummary(req);
+  // 🔁 Reuse the prior quote if the token still matches the current inputs.
+  const previousToken = verifyCheckoutToken(req.body.checkoutToken);
+
+  const summary = await buildCheckoutSummary(req, {
+    allowQuoteReuse: true,
+    previousToken,
+  });
+
+  const checkoutHash = buildCheckoutHash({
+    items: summary.order.items,
+    address: summary.address,
+    provider: summary.activeProvider,
+  });
+
+  const checkoutToken = signCheckoutToken({
+    provider: summary.activeProvider,
+    shippingFee: summary.order.shippingFee,
+    currency: summary.order.currency,
+    vatRate: summary.vatRate,
+    checkoutHash,
+  });
 
   res.status(200).json({
     isPendingOrder: pendingOrders.length > 0,
@@ -42,6 +71,7 @@ const confirmCheckout = asyncHandler(async (req, res) => {
       address: summary.address,
       totalAmount: summary.order.totalAmount,
       totalVat: summary.order.totalVat,
+      totalProductTax: summary.order.totalProductTax,
       shippingFee: summary.order.shippingFee,
       currency: summary.order.currency,
       status: ORDER_STATUS.PENDING,
@@ -56,6 +86,7 @@ const confirmCheckout = asyncHandler(async (req, res) => {
     },
 
     stock: summary.stock,
+    checkoutToken,
   });
 });
 
@@ -86,9 +117,21 @@ const checkout = asyncHandler(async (req, res) => {
   try {
     session.startTransaction();
 
+    // ⚠️ No allowQuoteReuse — checkout always recalculates fresh; the token
+    // is only a trust signal, never the source of these numbers.
     const summary = await buildCheckoutSummary(req);
 
-    console.log("summary");
+    const previousToken = verifyCheckoutToken(req.body.checkoutToken);
+    const isTrustedCheckout = !!(
+      previousToken &&
+      previousToken.provider === summary.activeProvider &&
+      previousToken.checkoutHash ===
+        buildCheckoutHash({
+          items: summary.order.items,
+          address: summary.address,
+          provider: summary.activeProvider,
+        })
+    );
 
     // 🚨 FINAL STOCK ENFORCEMENT (inside transaction)
     const stockIssues = summary.stock
@@ -232,11 +275,13 @@ const checkout = asyncHandler(async (req, res) => {
           address,
           totalAmount: order.totalAmount,
           totalVat: order.totalVat,
+          totalProductTax: order.totalProductTax,
           shippingFee: order.shippingFee,
           status: ORDER_STATUS.PENDING,
-          shippedBy: "Internal",
+          shippedBy: summary.activeProvider,
           expiresAt, // ✅ added new
           rollbackInfo: rollbackInfo.length > 0 ? rollbackInfo : null, // ✅ added new
+          extraInfo: { checkoutTrusted: isTrustedCheckout },
         },
       ],
       { session },
@@ -290,6 +335,75 @@ const checkout = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc Confirmation & agreement on guest orders — mirrors confirmCheckout
+// @route POST /api/orders/guest-confirm-checkout
+// @access Public
+const guestConfirmCheckout = asyncHandler(async (req, res) => {
+  await guestCheckoutValidationSchema.validate(req.body, {
+    abortEarly: false,
+  });
+
+  const { email } = req.body;
+
+  const pendingOrder = await Order.findOne({
+    userEmail: email,
+    checkoutType: CHECKOUT_TYPES.GUEST,
+    status: ORDER_STATUS.PENDING,
+  })
+    .sort({ createdAt: -1 })
+    .select("_id")
+    .lean();
+
+  const previousToken = verifyCheckoutToken(req.body.checkoutToken);
+
+  const summary = await buildGuestCheckoutSummary(req, {
+    allowQuoteReuse: true,
+    previousToken,
+  });
+
+  const checkoutHash = buildCheckoutHash({
+    items: summary.order.items,
+    address: summary.address,
+    provider: summary.activeProvider,
+  });
+
+  const checkoutToken = signCheckoutToken({
+    provider: summary.activeProvider,
+    shippingFee: summary.order.shippingFee,
+    currency: summary.order.currency,
+    vatRate: summary.vatRate,
+    checkoutHash,
+  });
+
+  res.status(200).json({
+    isPendingOrder: !!pendingOrder,
+    pendingOrder,
+
+    order: {
+      consigneesName: summary.consigneesName,
+      checkoutType: CHECKOUT_TYPES.GUEST,
+      items: summary.order.items,
+      address: summary.address,
+      totalAmount: summary.order.totalAmount,
+      totalVat: summary.order.totalVat,
+      totalProductTax: summary.order.totalProductTax,
+      shippingFee: summary.order.shippingFee,
+      currency: summary.order.currency,
+      status: ORDER_STATUS.PENDING,
+    },
+
+    payment: {
+      userEmail: email,
+      amountToPay: summary.payment.amountToPay,
+      currency: summary.payment.currency,
+      status: PAYMENT_STATUS.PENDING,
+    },
+
+    stock: summary.stock,
+    checkoutToken,
+  });
+});
+
 // @desc   Guest checkout orders
 // @route  POST /api/orders/guest-checkout
 // @access Public
@@ -326,7 +440,20 @@ const guestCheckout = asyncHandler(async (req, res) => {
   try {
     session.startTransaction();
 
+    // ⚠️ No allowQuoteReuse — same as authenticated checkout, always fresh.
     const summary = await buildGuestCheckoutSummary(req);
+
+    const previousToken = verifyCheckoutToken(req.body.checkoutToken);
+    const isTrustedCheckout = !!(
+      previousToken &&
+      previousToken.provider === summary.activeProvider &&
+      previousToken.checkoutHash ===
+        buildCheckoutHash({
+          items: summary.order.items,
+          address: summary.address,
+          provider: summary.activeProvider,
+        })
+    );
 
     // 🚨 FINAL STOCK ENFORCEMENT
     const stockIssues = summary.stock
@@ -472,16 +599,17 @@ const guestCheckout = asyncHandler(async (req, res) => {
       [
         {
           userEmail: email,
-          extraInfo: { phoneNumber },
+          extraInfo: { phoneNumber, checkoutTrusted: isTrustedCheckout },
           consigneesName,
           checkoutType: CHECKOUT_TYPES.GUEST,
           items: order.items,
           address,
           totalAmount: order.totalAmount,
           totalVat: order.totalVat,
+          totalProductTax: order.totalProductTax,
           shippingFee: order.shippingFee,
           status: ORDER_STATUS.PENDING,
-          shippedBy: "Internal",
+          shippedBy: summary.activeProvider,
           expiresAt,
           rollbackInfo: rollbackInfo.length > 0 ? rollbackInfo : null,
         },
@@ -795,7 +923,7 @@ const roundMoney = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 const checkoutItemsTotals = (items) => {
   let totalAmount = 0;
-  let totalVat = 0;
+  let totalProductTax = 0;
 
   const breakdown = [];
 
@@ -827,10 +955,12 @@ const checkoutItemsTotals = (items) => {
     unitPrice = roundMoney(unitPrice + attributeExtra);
 
     const itemTotal = roundMoney(unitPrice * quantity);
-    const itemVat = roundMoney((itemTotal * shopItem.vat) / 100);
+    const itemProductTax = roundMoney(
+      (itemTotal * (shopItem.productTax || 0)) / 100,
+    );
 
     totalAmount += itemTotal;
-    totalVat += itemVat;
+    totalProductTax += itemProductTax;
 
     breakdown.push({
       shopItem: shopItem._id,
@@ -839,25 +969,28 @@ const checkoutItemsTotals = (items) => {
       quantity,
       attributeExtra,
       itemTotal,
-      itemVat,
+      itemProductTax,
       currency: shopItem.currency,
     });
   }
 
   return {
     totalAmount: roundMoney(totalAmount),
-    totalVat: roundMoney(totalVat),
+    totalProductTax: roundMoney(totalProductTax),
     breakdown,
   };
 };
 
-const resolveShippingFee = async ({ country, state }) => {
+// VAT always comes from ExportFee, independent of the shipping provider.
+const resolveDestinationVat = async ({ country, state }) => {
   if (!country) {
     throw new Error("Shipping country is required");
   }
 
+  // NOTE: ExportFee.country is stored uppercase (schema enforces /^[A-Z]{2}$/),
+  // so the lookup must match that casing rather than lowercasing it.
   const exportFee = await ExportFee.findOne({
-    country: country.toLowerCase(),
+    country: country.toUpperCase(),
     isActive: true,
   }).lean();
 
@@ -865,43 +998,113 @@ const resolveShippingFee = async ({ country, state }) => {
     throw new Error("Shipping is not available for this country");
   }
 
-  let shippingFee = exportFee.defaultAmount;
+  let vatRate = exportFee.defaultVat;
 
   if (state && Array.isArray(exportFee.states)) {
     const matchedState = exportFee.states.find(
       (s) => s.state.toLowerCase().trim() === state.toLowerCase().trim(),
     );
 
-    if (matchedState) {
-      shippingFee = matchedState.amount;
+    if (matchedState && typeof matchedState.vat === "number") {
+      vatRate = matchedState.vat;
     }
   }
 
-  return {
-    shippingFee,
-    shippingCountry: exportFee.country,
-    shippingState: state || null,
-  };
+  return { vatRate };
 };
 
-const buildCheckoutSummary = async (req) => {
+// Only confirm-checkout (allowQuoteReuse: true) may reuse a prior quote from
+// a checkout token — checkout itself always fetches fresh.
+const resolveShippingQuote = async ({
+  items,
+  address,
+  settings,
+  activeProvider,
+  currency,
+  allowQuoteReuse,
+  previousToken,
+}) => {
+  if (allowQuoteReuse && previousToken) {
+    const currentHash = buildCheckoutHash({
+      items,
+      address,
+      provider: activeProvider,
+    });
+
+    if (
+      previousToken.provider === activeProvider &&
+      previousToken.checkoutHash === currentHash &&
+      typeof previousToken.shippingFee === "number"
+    ) {
+      return previousToken.shippingFee;
+    }
+  }
+
+  const provider = getShippingProvider(activeProvider);
+
+  const quote = await provider.getQuote({
+    items: items.map((item) => ({
+      name: item.shopItem.name,
+      unitPrice: item.shopItem.price,
+      quantity: item.quantity,
+      weightGrams: kgToGrams(
+        toKg(item.shopItem?.weight?.value, item.shopItem?.weight?.unit),
+      ),
+    })),
+    destination: {
+      country: address.country,
+      state: address.state,
+      city: address.city,
+      zipCode: address.zipCode,
+      fullAddress: address.fullAddress,
+    },
+    origin: settings.originAddress,
+    currency,
+  });
+
+  return quote.shippingFee;
+};
+
+const buildCheckoutSummary = async (req, options = {}) => {
   const { user, items, address, currency, consigneesName } =
     await getCheckoutData(req);
 
-  // 🧾 Items totals
-  const { totalAmount, totalVat } = checkoutItemsTotals(items);
+  // 🧾 Items totals (product subtotal + per-product special tax)
+  const { totalAmount, totalProductTax } = checkoutItemsTotals(items);
 
-  // 🚚 Shipping
+  const settings = await getShippingSettings();
+  const activeProvider = settings.enabled
+    ? settings.activeProvider
+    : SHIPPING_PROVIDERS.INTERNAL;
+
+  // 🚚 Shipping + destination VAT
   let shippingFee = 0;
+  let totalVat = 0;
+  let vatRate = 0;
+
   if (address) {
-    const shipping = await resolveShippingFee({
+    const destinationVat = await resolveDestinationVat({
       country: address.country,
       state: address.state,
     });
-    shippingFee = shipping.shippingFee;
+
+    vatRate = destinationVat.vatRate || 0;
+    totalVat = roundMoney((totalAmount * vatRate) / 100);
+
+    shippingFee = await resolveShippingQuote({
+      items,
+      address,
+      settings,
+      activeProvider,
+      currency,
+      allowQuoteReuse: options.allowQuoteReuse,
+      previousToken: options.previousToken,
+    });
   }
 
-  const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
+  const amountToPay = roundMoney(
+    totalAmount + totalVat + totalProductTax + shippingFee,
+  );
 
   const stock = validateStockStateful(items);
   // 📦 Order item snapshot (schema-compliant)
@@ -918,11 +1121,14 @@ const buildCheckoutSummary = async (req) => {
     address,
     stock,
     consigneesName,
+    activeProvider,
+    vatRate,
 
     order: {
       items: orderItems,
       totalAmount,
       totalVat,
+      totalProductTax,
       shippingFee,
       currency,
     },
@@ -997,26 +1203,46 @@ const getCheckoutDataGuest = async (req) => {
   };
 };
 
-const buildGuestCheckoutSummary = async (req) => {
+const buildGuestCheckoutSummary = async (req, options = {}) => {
   const { items, address, currency, consigneesName, email, phoneNumber } =
     await getCheckoutDataGuest(req);
 
-  // 🧾 Items totals
-  const { totalAmount, totalVat } = checkoutItemsTotals(items);
+  // 🧾 Items totals (product subtotal + per-product special tax)
+  const { totalAmount, totalProductTax } = checkoutItemsTotals(items);
 
-  // 🚚 Shipping
+  const settings = await getShippingSettings();
+  const activeProvider = settings.enabled
+    ? settings.activeProvider
+    : SHIPPING_PROVIDERS.INTERNAL;
+
+  // 🚚 Shipping + destination VAT
   let shippingFee = 0;
+  let totalVat = 0;
+  let vatRate = 0;
 
   if (address) {
-    const shipping = await resolveShippingFee({
+    const destinationVat = await resolveDestinationVat({
       country: address.country,
       state: address.state,
     });
 
-    shippingFee = shipping.shippingFee;
+    vatRate = destinationVat.vatRate || 0;
+    totalVat = roundMoney((totalAmount * vatRate) / 100);
+
+    shippingFee = await resolveShippingQuote({
+      items,
+      address,
+      settings,
+      activeProvider,
+      currency,
+      allowQuoteReuse: options.allowQuoteReuse,
+      previousToken: options.previousToken,
+    });
   }
 
-  const amountToPay = roundMoney(totalAmount + totalVat + shippingFee);
+  const amountToPay = roundMoney(
+    totalAmount + totalVat + totalProductTax + shippingFee,
+  );
 
   // 📦 Stock validation
   const stock = validateStockStateful(items);
@@ -1034,11 +1260,14 @@ const buildGuestCheckoutSummary = async (req) => {
     consigneesName,
     email,
     phoneNumber,
+    activeProvider,
+    vatRate,
 
     order: {
       items: orderItems,
       totalAmount,
       totalVat,
+      totalProductTax,
       shippingFee,
       currency,
     },
@@ -1053,7 +1282,9 @@ const buildGuestCheckoutSummary = async (req) => {
 module.exports = {
   confirmCheckout,
   checkout,
+  guestConfirmCheckout,
   guestCheckout,
   validateGroupedVariants,
   validateStockStateful,
+  checkoutItemsTotals, // exported for direct unit testing — pure function, no DB
 };

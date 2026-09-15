@@ -11,15 +11,17 @@ const {
   unlockOrders,
 } = require("../helpers/orderHelper");
 const { randomUUID } = require("crypto");
+const { sendTemplatedEmail } = require("../helpers/emailSender");
 
-const ORDER_STATUS_FLOW = {
-  pending: ["processing", "cancelled"],
-  processing: ["shipped", "cancelled", "paid"],
-  paid: ["shipped", "processing"],
-  shipped: ["delivered", "shipped"],
-  delivered: [],
-  cancelled: [],
-};
+// 🛑 Disabled — see the commented-out updateOrderStatus below for why.
+// const ORDER_STATUS_FLOW = {
+//   pending: ["processing", "cancelled"],
+//   processing: ["shipped", "cancelled", "paid"],
+//   paid: ["shipped", "processing"],
+//   shipped: ["delivered", "shipped"],
+//   delivered: [],
+//   cancelled: [],
+// };
 
 const CANCEL_GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 mins
 
@@ -232,104 +234,113 @@ const getOrderByIdAll = asyncHandler(async (req, res) => {
   });
 });
 
+// 🛑 Disabled for now — shipped/delivered transitions are now driven by the
+// Shipment model instead (see helpers/shipmentHelper.js's
+// applyShipmentStatusToOrder, called from shipmentController.js's manual
+// "create shipment" action and the Shopify webhook handler). This also
+// covered pending->processing / processing<->paid / processing->cancelled,
+// which currently have no replacement — re-enable (or rebuild a narrower
+// version) if that manual control is needed again. Route is commented out
+// too, see routes/orderRoutes.js.
+//
 // @desc Update order status
 // @route PATCH /api/orders/:id/status
 // @access Private (Admin)
-const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { status, shippingDetails } = req.body;
-  const { id } = req.params;
-
-  if (!Object.values(ORDER_STATUS).includes(status)) {
-    res.status(400);
-    throw new Error("Invalid order status");
-  }
-
-  if (status === ORDER_STATUS.CANCELLED) {
-    res.status(400);
-    throw new Error("Invalid order status");
-  }
-
-  const order = await Order.findById(id);
-
-  if (!order) {
-    res.status(404);
-    throw new Error("Order not found");
-  }
-
-  const allowedNextStatuses = ORDER_STATUS_FLOW[order.status] || [];
-
-  if (!allowedNextStatuses.includes(status)) {
-    res.status(400);
-    throw new Error(
-      `Cannot change order status from ${order.status} to ${status}`,
-    );
-  }
-
-  // 🚚 Enforce shipping details when moving to SHIPPED
-  if (status === ORDER_STATUS.SHIPPED) {
-    const { company, trackingNumber } = shippingDetails || {};
-
-    if (!company?.trim() || !trackingNumber?.trim()) {
-      throw new Error("Valid shipping company and tracking number required");
-    }
-
-    // ✅ attach shipping details
-    order.shippingDetails = {
-      company: company.trim(),
-      trackingNumber: trackingNumber.trim(),
-      shippedAt: new Date(),
-    };
-  }
-
-  // Optional: allow updating shipping details separately
-  if (shippingDetails && status !== ORDER_STATUS.SHIPPED) {
-    order.shippingDetails = {
-      ...(order.shippingDetails || {}),
-      ...shippingDetails,
-    };
-  }
-
-  order.status = status;
-
-  order.updatedBy = {
-    id: req.user._id,
-    email: req.user.email,
-  };
-
-  await order.save();
-
-  if (
-    status === ORDER_STATUS.SHIPPED &&
-    order.userEmail &&
-    order.shippingDetails
-  ) {
-    const refURL =
-      order.checkoutType === CHECKOUT_TYPES.GUEST
-        ? `/guest-order?email=${encodeURIComponent(
-            order.userEmail,
-          )}&orderId=${order._id}`
-        : `/settings?currentSettings=orders&orderId=${order._id}`;
-
-    await sendTemplatedEmail({
-      to: order.userEmail,
-      subject: "Your Order Has Been Shipped 📦",
-      template: "orderShipped",
-      variables: {
-        name: order.userEmail,
-        orderId: order._id,
-        company: order.shippingDetails.company,
-        trackingNumber: order.shippingDetails.trackingNumber,
-        year: new Date().getFullYear(),
-        orderUrl: `${process.env.FRONTEND_URL}${refURL}`,
-      },
-    });
-  }
-
-  res.status(200).json({
-    message: "Order status updated",
-    order,
-  });
-});
+// const updateOrderStatus = asyncHandler(async (req, res) => {
+//   const { status, shippingDetails } = req.body;
+//   const { id } = req.params;
+//
+//   if (!Object.values(ORDER_STATUS).includes(status)) {
+//     res.status(400);
+//     throw new Error("Invalid order status");
+//   }
+//
+//   if (status === ORDER_STATUS.CANCELLED) {
+//     res.status(400);
+//     throw new Error("Invalid order status");
+//   }
+//
+//   const order = await Order.findById(id);
+//
+//   if (!order) {
+//     res.status(404);
+//     throw new Error("Order not found");
+//   }
+//
+//   const allowedNextStatuses = ORDER_STATUS_FLOW[order.status] || [];
+//
+//   if (!allowedNextStatuses.includes(status)) {
+//     res.status(400);
+//     throw new Error(
+//       `Cannot change order status from ${order.status} to ${status}`,
+//     );
+//   }
+//
+//   // 🚚 Enforce shipping details when moving to SHIPPED
+//   if (status === ORDER_STATUS.SHIPPED) {
+//     const { company, trackingNumber } = shippingDetails || {};
+//
+//     if (!company?.trim() || !trackingNumber?.trim()) {
+//       throw new Error("Valid shipping company and tracking number required");
+//     }
+//
+//     // ✅ attach shipping details
+//     order.shippingDetails = {
+//       company: company.trim(),
+//       trackingNumber: trackingNumber.trim(),
+//       shippedAt: new Date(),
+//     };
+//   }
+//
+//   // Optional: allow updating shipping details separately
+//   if (shippingDetails && status !== ORDER_STATUS.SHIPPED) {
+//     order.shippingDetails = {
+//       ...(order.shippingDetails || {}),
+//       ...shippingDetails,
+//     };
+//   }
+//
+//   order.status = status;
+//
+//   order.updatedBy = {
+//     id: req.user._id,
+//     email: req.user.email,
+//   };
+//
+//   await order.save();
+//
+//   if (
+//     status === ORDER_STATUS.SHIPPED &&
+//     order.userEmail &&
+//     order.shippingDetails
+//   ) {
+//     const refURL =
+//       order.checkoutType === CHECKOUT_TYPES.GUEST
+//         ? `/guest-order?email=${encodeURIComponent(
+//             order.userEmail,
+//           )}&orderId=${order._id}`
+//         : `/settings?currentSettings=orders&orderId=${order._id}`;
+//
+//     await sendTemplatedEmail({
+//       to: order.userEmail,
+//       subject: "Your Order Has Been Shipped 📦",
+//       template: "orderShipped",
+//       variables: {
+//         name: order.userEmail,
+//         orderId: order._id,
+//         company: order.shippingDetails.company,
+//         trackingNumber: order.shippingDetails.trackingNumber,
+//         year: new Date().getFullYear(),
+//         orderUrl: `${process.env.FRONTEND_URL}${refURL}`,
+//       },
+//     });
+//   }
+//
+//   res.status(200).json({
+//     message: "Order status updated",
+//     order,
+//   });
+// });
 
 // @desc Cancel order
 // @route PATCH /api/orders/:id/cancel
@@ -530,7 +541,7 @@ module.exports = {
   getMyOrders,
   getOrders,
   getOrderById,
-  updateOrderStatus,
+  // updateOrderStatus, // 🛑 disabled — see the commented-out function above
   cancelOrder,
   cancelExpiredOrdersAdmin,
   cancelExpiredGuestOrders,

@@ -1,7 +1,8 @@
 const asyncHandler = require("express-async-handler");
 const mongoose = require("mongoose");
 const ProductReview = require("../models/reviewModel");
-const ShopItem = require("../models/shopItemModel");
+const { ShopItem } = require("../models/shopItemModel");
+const { ROLE } = require("../models/userModel");
 
 // @desc   Create or Update Product Review
 // @route  POST /api/reviews/:productId
@@ -95,8 +96,6 @@ const getProductReviews = asyncHandler(async (req, res) => {
     reviews,
   });
 });
-
-const { ROLE } = require("../models/userModel");
 
 // @desc   Delete Review
 // @route  DELETE /api/reviews/:id

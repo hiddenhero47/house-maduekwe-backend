@@ -1,6 +1,10 @@
 const errorHandler = (err, req, res, next) => {
+  // err.status is a defensive fallback — this codebase's convention is
+  // err.statusCode.
   let statusCode =
-    err.statusCode || (res.statusCode === 200 ? 500 : res.statusCode);
+    err.statusCode ||
+    err.status ||
+    (res.statusCode === 200 ? 500 : res.statusCode);
 
   // Handle Yup validation errors specifically
   if (err.name === "ValidationError") {

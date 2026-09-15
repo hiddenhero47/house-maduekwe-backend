@@ -7,6 +7,8 @@ const stateFeeSchema = yup.object({
     .number()
     .required("State amount is required")
     .min(0, "State amount cannot be negative"),
+
+  vat: yup.number().min(0, "State vat cannot be negative").optional(),
 });
 
 const exportFeeValidationSchema = yup.object({
@@ -22,6 +24,11 @@ const exportFeeValidationSchema = yup.object({
     .number()
     .required("Default amount is required")
     .min(0, "Default amount cannot be negative"),
+
+  defaultVat: yup
+    .number()
+    .required("Default vat is required")
+    .min(0, "Default vat cannot be negative"),
 
   states: yup
     .array()

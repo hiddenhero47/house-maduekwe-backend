@@ -77,9 +77,22 @@ const shopItemSchema = mongoose.Schema(
       type: Number,
       required: [true, "Add a price for the item"],
     },
-    vat: {
+    productTax: {
       type: Number,
-      required: [true, "Add a vat percentage for the item"],
+      default: 0,
+      min: [0, "productTax cannot be negative"],
+    },
+
+    weight: {
+      value: {
+        type: Number,
+        min: [0, "Weight value cannot be negative"],
+      },
+      unit: {
+        type: String,
+        enum: ["kg", "g", "lb", "oz"],
+        default: "kg",
+      },
     },
     currency: {
       type: String,

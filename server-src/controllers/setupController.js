@@ -2,6 +2,7 @@ const { ensureAdminExists } = require("../helpers/ensureAdmin");
 const {
   ensureStripePaymentProvider,
   ensureUSExportFee,
+  ensureShippingSettings,
 } = require("../helpers/appSetup");
 const Cart = require("../models/cartModel");
 const asyncHandler = require("express-async-handler");
@@ -10,6 +11,8 @@ const crypto = require("crypto");
 const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const { Order, ORDER_STATUS } = require("../models/orderModel");
 const { Address } = require("../models/addressModel");
+const { ShopItem } = require("../models/shopItemModel");
+const { ExportFee } = require("../models/exportFeeModel");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -21,6 +24,7 @@ const runSetupScripts = async (req, res) => {
   logs.push(await ensureAdminExists());
   logs.push(await ensureStripePaymentProvider());
   logs.push(await ensureUSExportFee());
+  logs.push(await ensureShippingSettings());
   // later: logs.push(await anotherSetupTask());
 
   res.json({
@@ -80,6 +84,60 @@ const normalizeAddresses = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Backfill old data for the productTax/weight/defaultVat schema changes
+// @route   POST /api/setup/migrate-tax-vat-fields
+// @access  Private/Admin (time-window guarded, see setupRoutes)
+// Rough placeholder, not a measured value — refine per product later.
+const DEFAULT_PLACEHOLDER_WEIGHT = { value: 0.2, unit: "kg" };
+
+const migrateTaxAndVatFields = asyncHandler(async (req, res) => {
+  const exportFeeResult = await ExportFee.updateMany(
+    { defaultVat: { $exists: false } },
+    { $set: { defaultVat: 0 } },
+  );
+
+  const shopItemTaxResult = await ShopItem.updateMany(
+    { productTax: { $exists: false } },
+    { $set: { productTax: 0 } },
+  );
+
+  // strict: false needed — Mongoose silently drops $unset on fields no
+  // longer in the schema, so without it "vat" never actually gets removed.
+  const shopItemVatCleanupResult = await ShopItem.updateMany(
+    { vat: { $exists: true } },
+    { $unset: { vat: "" } },
+    { strict: false },
+  );
+
+  const orderResult = await Order.updateMany(
+    { totalProductTax: { $exists: false } },
+    { $set: { totalProductTax: 0 } },
+  );
+
+  const shopItemWeightResult = await ShopItem.updateMany(
+    {
+      $or: [
+        { weight: { $exists: false } },
+        { "weight.value": { $exists: false } },
+      ],
+    },
+    { $set: { weight: DEFAULT_PLACEHOLDER_WEIGHT } },
+  );
+
+  res.json({
+    success: true,
+    message:
+      "Migration complete. ⚠️ ExportFee.defaultVat was backfilled to 0 as a placeholder — review and set the real VAT rate per country before relying on it. ⚠️ ShopItem.weight was backfilled with a rough average-shirt placeholder (0.2kg) — review per product before relying on it for real shipping quotes.",
+    results: {
+      exportFeesDefaultVatBackfilled: exportFeeResult.modifiedCount,
+      shopItemsProductTaxBackfilled: shopItemTaxResult.modifiedCount,
+      shopItemsOldVatFieldRemoved: shopItemVatCleanupResult.modifiedCount,
+      ordersTotalProductTaxBackfilled: orderResult.modifiedCount,
+      shopItemsWeightBackfilled: shopItemWeightResult.modifiedCount,
+    },
+  });
+});
+
 // @desc    Clear orders and payments
 // @route   DELETE /api/setup/clear-orders-payments
 // @access  Private/Admin
@@ -121,4 +179,5 @@ module.exports = {
   clearCart,
   clearOrdersAndPayments,
   normalizeAddresses,
+  migrateTaxAndVatFields,
 };
