@@ -4,6 +4,9 @@ const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const { Order, ORDER_STATUS, CHECKOUT_TYPES } = require("../models/orderModel");
 const stripe = require("../config/stripe");
 const { sendTemplatedEmail } = require("../helpers/emailSender");
+const { getShippingSettings } = require("../helpers/shippingSettingsHelper");
+const { getShippingProvider } = require("../providers/shippingProviders");
+const { createShipmentForOrderCore } = require("./shipmentController");
 
 // @desc Get logged-in user's payments
 // @route GET /api/payments/me
@@ -202,6 +205,35 @@ const processStripeEvent = async (req, res) => {
     { _id: payment.orderId },
     { status: ORDER_STATUS.PAID },
   );
+
+  // 🚚 Auto-create a shipment when the provider that quoted this order
+  // self-serves real tracking (provider.supportsAutoTracking — UPS, not
+  // internal, and Shopify isn't in the shipping-provider registry at all —
+  // see docs/shopify-ups-integration-plan.md) and the admin has the
+  // auto-create toggle on. Never lets a shipment-creation failure block the
+  // payment webhook — it's already been acknowledged above.
+  try {
+    const settings = await getShippingSettings();
+
+    if (settings.autoCreateShipment) {
+      const paidOrder = await Order.findById(payment.orderId);
+      const providerName = paidOrder?.shippedBy?.toLowerCase();
+
+      if (providerName) {
+        const provider = getShippingProvider(providerName);
+
+        if (provider.supportsAutoTracking) {
+          await createShipmentForOrderCore({
+            order: paidOrder,
+            manualDetails: {},
+            actor: null,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[AUTO_CREATE_SHIPMENT] Failed:", err.message);
+  }
 
   const order = await Order.findById(payment.orderId).lean();
 

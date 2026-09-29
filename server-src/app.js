@@ -24,6 +24,14 @@ const createApp = () => {
     "/api/shipments/shopify/webhook",
     express.raw({ type: "application/json" }),
   );
+  app.use(
+    "/api/shipments/ups/webhook",
+    express.raw({ type: "application/json" }),
+  );
+  app.use(
+    "/api/shipments/usps/webhook",
+    express.raw({ type: "application/json" }),
+  );
   const forms = multer();
   app.use(express.json({ limit: "10mb" }));
   app.use(forms.any());

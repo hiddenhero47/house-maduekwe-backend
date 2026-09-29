@@ -1,6 +1,7 @@
 const { ORDER_STATUS, CHECKOUT_TYPES } = require("../models/orderModel");
 const { SHIPMENT_STATUS } = require("../models/shipmentModel");
 const { sendTemplatedEmail } = require("./emailSender");
+const { deleteShipmentFiles } = require("./privateFileManager");
 
 // Shipment statuses at which the customer-facing Order should flip to
 // SHIPPED (as soon as we actually have a carrier + tracking number).
@@ -71,6 +72,15 @@ const applyShipmentStatusToOrder = async ({ order, shipment, sendEmail = true })
   ) {
     order.status = ORDER_STATUS.DELIVERED;
     await order.save();
+
+    // The physical label no longer matters once delivered — free the
+    // per-shipment private folder (see helpers/privateFileManager.js).
+    if (shipment.files?.length) {
+      deleteShipmentFiles(shipment._id);
+      shipment.files = [];
+      await shipment.save();
+    }
+
     return true;
   }
 

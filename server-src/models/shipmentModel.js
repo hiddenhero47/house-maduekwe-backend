@@ -80,6 +80,23 @@ const shipmentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
     },
 
+    // Metadata only — the actual bytes live under server-src/private/, never
+    // in Mongo and never under the public static folder. See
+    // helpers/privateFileManager.js and docs/shopify-ups-integration-plan.md.
+    files: {
+      type: [
+        {
+          kind: { type: String, required: true }, // "label" for now
+          format: { type: String, required: true }, // "PDF" | "GIF" | "ZPL"
+          filename: { type: String, required: true },
+          path: { type: String, required: true }, // relative to PRIVATE_DIR
+          contentType: { type: String, required: true },
+          storedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+
     createdBy: {
       id: {
         type: mongoose.Schema.Types.ObjectId,

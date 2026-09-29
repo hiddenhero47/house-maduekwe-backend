@@ -18,12 +18,14 @@ describe("internalProvider.getQuote", () => {
     );
   });
 
-  it("throws if no active ExportFee exists for the country", async () => {
+  it("returns null (not a throw) if no active ExportFee exists for the country — signals 'can't serve' to the fallback loop", async () => {
     mockExportFeeDoc(null);
 
-    await expect(
-      internalProvider.getQuote({ destination: { country: "us" } }),
-    ).rejects.toThrow("Shipping is not available for this country");
+    const quote = await internalProvider.getQuote({
+      destination: { country: "us" },
+    });
+
+    expect(quote).toBeNull();
   });
 
   it("queries ExportFee with the country uppercased (schema stores it uppercase)", async () => {

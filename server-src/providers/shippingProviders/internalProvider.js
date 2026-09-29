@@ -17,8 +17,13 @@ const getQuote = async ({ destination, currency }) => {
     isActive: true,
   }).lean();
 
+  // No ExportFee row means "we don't operate in this country at all" — that's
+  // already a hard stop upstream in resolveDestinationVat (checkoutController.js),
+  // which always runs before this. Returning null here (not throwing) just
+  // keeps this provider consistent with the "null = can't serve" contract the
+  // fallback loop in resolveShippingQuote relies on.
   if (!exportFee) {
-    throw new Error("Shipping is not available for this country");
+    return null;
   }
 
   let shippingFee = exportFee.defaultAmount;
@@ -74,6 +79,9 @@ const getShipment = async () => {
 
 module.exports = {
   name: "internal",
+  // Requires a human to type carrier/tracking in by hand — can't self-serve,
+  // so auto-create-shipment-on-payment never fires for this provider.
+  supportsAutoTracking: false,
   getQuote,
   createShipment,
   getShipment,
