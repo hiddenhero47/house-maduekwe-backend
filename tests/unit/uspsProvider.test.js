@@ -1,16 +1,22 @@
 jest.mock("../../server-src/config/usps", () => ({
   getUspsClient: jest.fn(),
+  getPaymentAuthorizationToken: jest.fn(),
   USPS_CRID: "TEST-CRID",
   USPS_MAILER_ID: "TEST-MID",
+  USPS_EPS_ACCOUNT_NUMBER: "TEST-EPS-0000000001",
 }));
 
-const { getUspsClient } = require("../../server-src/config/usps");
+const {
+  getUspsClient,
+  getPaymentAuthorizationToken,
+} = require("../../server-src/config/usps");
 const uspsProvider = require("../../server-src/providers/shippingProviders/uspsProvider");
 
 const mockClient = (impl) => {
   const client = { post: jest.fn(), get: jest.fn() };
   impl(client);
   getUspsClient.mockResolvedValue(client);
+  getPaymentAuthorizationToken.mockResolvedValue("TEST-PAYMENT-TOKEN");
   return client;
 };
 
@@ -130,6 +136,28 @@ describe("uspsProvider.createShipment", () => {
     expect(result.shippingCost).toBe(8.02);
     expect(result.label.format).toBe("PDF");
     expect(result.label.data.toString()).toBe("fake-usps-label-pdf");
+  });
+
+  it("fetches a real payment authorization token and sends it on the label request", async () => {
+    const client = mockClient((c) => {
+      c.post.mockResolvedValue({
+        data: { labelMetadata: { trackingNumber: "9400100000000000000000" } },
+      });
+    });
+
+    await uspsProvider.createShipment({
+      order: { _id: "order1" },
+      items: [],
+      destination: usAddress,
+      origin: usAddress,
+    });
+
+    expect(getPaymentAuthorizationToken).toHaveBeenCalledTimes(1);
+
+    const [, , config] = client.post.mock.calls[0];
+    expect(config.headers["X-Payment-Authorization-Token"]).toBe(
+      "TEST-PAYMENT-TOKEN",
+    );
   });
 
   it("throws if USPS doesn't return a tracking number", async () => {

@@ -1,4 +1,9 @@
-const { getUspsClient, USPS_CRID, USPS_MAILER_ID } = require("../../config/usps");
+const {
+  getUspsClient,
+  getPaymentAuthorizationToken,
+  USPS_MAILER_ID,
+  USPS_EPS_ACCOUNT_NUMBER,
+} = require("../../config/usps");
 
 // USPS's OAuth2 "USPS APIs" platform request/response shapes below follow
 // their published Developer Portal structure as of this writing — no live
@@ -81,7 +86,7 @@ const getQuote = async ({ items, destination, origin, currency }) => {
       mailClass: "USPS_GROUND_ADVANTAGE",
       priceType: "COMMERCIAL",
       accountType: "EPS",
-      accountNumber: USPS_CRID,
+      accountNumber: USPS_EPS_ACCOUNT_NUMBER,
       mailingDate: new Date().toISOString().slice(0, 10),
     });
 
@@ -105,17 +110,16 @@ const getQuote = async ({ items, destination, origin, currency }) => {
 };
 
 // Buys the label — self-serves a real tracking number, no manual carrier
-// entry needed (supportsAutoTracking: true below).
-//
-// ⚠️ USPS's Labels API expects an X-Payment-Authorization-Token header,
-// obtained from a separate Payments API call tied to an EPS/permit account
-// — that step isn't implemented yet (no live USPS account to build it
-// against). USPS_PAYMENT_AUTH_TOKEN below is a placeholder env var until
-// that flow exists; label purchase will 4xx against a real account without it.
+// entry needed (supportsAutoTracking: true below). Funds it via the EPS
+// account configured in config/usps.js (Trust Account or ACH Debit — same
+// API shape either way, see USPS_EPS_ACCOUNT_NUMBER's comment there).
 const createShipment = async ({ order, items, destination, origin }) => {
   const weightLbs = Math.max(sumWeightLbs(items), 0.1);
 
-  const client = await getUspsClient();
+  const [client, paymentAuthorizationToken] = await Promise.all([
+    getUspsClient(),
+    getPaymentAuthorizationToken(),
+  ]);
 
   const { data } = await client.post(
     `/labels/${LABELS_VERSION}/label`,
@@ -148,7 +152,7 @@ const createShipment = async ({ order, items, destination, origin }) => {
     },
     {
       headers: {
-        "X-Payment-Authorization-Token": process.env.USPS_PAYMENT_AUTH_TOKEN || "",
+        "X-Payment-Authorization-Token": paymentAuthorizationToken,
       },
     },
   );

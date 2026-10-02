@@ -12,8 +12,18 @@ const USPS_CLIENT_SECRET = process.env.USPS_CLIENT_SECRET; // Consumer Secret
 // pricing/labels, same role UPS_ACCOUNT_NUMBER plays for UPS.
 const USPS_CRID = process.env.USPS_CRID;
 const USPS_MAILER_ID = process.env.USPS_MAILER_ID;
+// The MID used on the actual label/manifest — distinct from USPS_MAILER_ID
+// (the organization-level MID) only for accounts with sub-MIDs. Falls back
+// to USPS_MAILER_ID, which is correct for a single-MID setup.
+const USPS_MANIFEST_MID = process.env.USPS_MANIFEST_MID || USPS_MAILER_ID;
+// The 10-digit Enterprise Payment Account (EPA) number from Business
+// Customer Gateway — separate from CRID/MID. Same value regardless of
+// whether the EPS account is funded via Trust Account or ACH Debit; which
+// funding method is used is decided in Business Customer Gateway, not here.
+const USPS_EPS_ACCOUNT_NUMBER = process.env.USPS_EPS_ACCOUNT_NUMBER;
 
 let cachedToken = null; // { accessToken, expiresAt }
+let cachedPaymentToken = null; // { token, expiresAt }
 
 // OAuth2 client-credentials — same shape as config/ups.js, short-lived
 // token cached with a safety margin rather than read once at require-time.
@@ -58,15 +68,62 @@ const getUspsClient = async () => {
   });
 };
 
+// Exchanges CRID/MID/EPS account info for the X-Payment-Authorization-Token
+// the Labels API requires — valid for 8 hours, so cached the same way as
+// the OAuth token rather than fetched on every label purchase. This is the
+// one piece that was a placeholder before; it's what actually lets a label
+// purchase draw against the EPS account (Trust Account or ACH Debit — the
+// request shape is identical either way, see USPS_EPS_ACCOUNT_NUMBER above).
+const getPaymentAuthorizationToken = async () => {
+  if (
+    cachedPaymentToken &&
+    cachedPaymentToken.expiresAt > Date.now() + 5 * 60_000
+  ) {
+    return cachedPaymentToken.token;
+  }
+
+  const client = await getUspsClient();
+
+  const { data } = await client.post("/payments/v3/payment-authorization", {
+    roles: [
+      {
+        roleName: "PAYER",
+        CRID: USPS_CRID,
+        MID: USPS_MAILER_ID,
+        manifestMID: USPS_MANIFEST_MID,
+        accountType: "EPS",
+        accountNumber: USPS_EPS_ACCOUNT_NUMBER,
+      },
+    ],
+  });
+
+  if (!data?.paymentAuthorizationToken) {
+    throw new Error("USPS did not return a payment authorization token");
+  }
+
+  cachedPaymentToken = {
+    token: data.paymentAuthorizationToken,
+    // USPS documents an 8-hour lifetime; no expires_in on this response to
+    // read, so it's hardcoded with a safety margin rather than assumed exact.
+    expiresAt: Date.now() + 8 * 60 * 60 * 1000,
+  };
+
+  return cachedPaymentToken.token;
+};
+
 const _resetUspsTokenCache = () => {
   cachedToken = null;
+  cachedPaymentToken = null;
 };
 
 module.exports = {
   getUspsAccessToken,
   getUspsClient,
+  getPaymentAuthorizationToken,
   USPS_CRID,
   USPS_MAILER_ID,
+  USPS_MANIFEST_MID,
+  USPS_EPS_ACCOUNT_NUMBER,
   USPS_API_BASE_URL,
   _resetUspsTokenCache,
 };

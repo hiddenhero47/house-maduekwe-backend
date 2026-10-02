@@ -1,8 +1,10 @@
 # Shipping Integration Plan — Internal + UPS + USPS (Shopify demoted, see below)
 
-Status: **UPS and USPS both implemented, tested against mocked HTTP (286
-backend tests passing). Neither has live credentials yet — see "What's
-still open" at the bottom.**
+Status: **UPS and USPS both fully implemented, including USPS's Payments
+API step, tested against mocked HTTP (287 backend tests passing). Neither
+has live credentials yet — the only remaining work is registration (see
+`docs/shipping-provider-credentials-checklist.md`) and confirming
+best-effort field names against a real sandbox once that's done.**
 
 Scope note: this started as "Shopify + UPS." After checking what Shopify's API surface
 actually allows (Section 0), Shopify came out of the shipping-provider chain entirely —
@@ -227,18 +229,24 @@ Real differences from UPS, not just copy-paste:
   fallback is now generic (`typeof provider.recoverLabel === "function"`)
   rather than hardcoded to `"ups"`, so USPS cleanly 404s instead of crashing
   when a stored label is ever missing.
-- **Label purchase needs a payment step UPS doesn't require.** USPS's Labels
-  API expects an `X-Payment-Authorization-Token` header, sourced from a
-  separate Payments API call tied to an EPS/permit account — not
-  implemented (no live account to build it against). `createShipment`
-  currently sends `process.env.USPS_PAYMENT_AUTH_TOKEN` as a placeholder;
-  label purchase will 4xx against a real USPS account until that Payments
-  API flow is built. Flagging this now so it isn't a surprise later — it's
-  the one piece of USPS that's more than "swap the field names."
+- **Label purchase needs a payment step UPS doesn't require — now built.**
+  USPS's Labels API expects an `X-Payment-Authorization-Token` header.
+  `config/usps.js`'s `getPaymentAuthorizationToken()` gets a real one from
+  USPS's Payments API (`POST /payments/v3/payment-authorization`, using the
+  same OAuth bearer token), caches it for its documented 8-hour lifetime
+  (same pattern as the OAuth token cache), and `createShipment` sends it on
+  every label purchase. **Trust Account and ACH Debit are not different code
+  paths** — both are represented identically as `accountType: "EPS"` +
+  `USPS_EPS_ACCOUNT_NUMBER`; which funding method is actually used is a
+  Business Customer Gateway setup choice, invisible to this API call. Also
+  fixed along the way: `getQuote`'s pricing call had been sending `USPS_CRID`
+  as its `accountNumber` — that field is the EPS account number, not the
+  CRID; now uses `USPS_EPS_ACCOUNT_NUMBER` there too.
 
 New env vars: `USPS_CLIENT_ID`, `USPS_CLIENT_SECRET`, `USPS_CRID`,
-`USPS_MAILER_ID`, `USPS_API_BASE_URL`, `USPS_WEBHOOK_SECRET`,
-`USPS_PAYMENT_AUTH_TOKEN` (placeholder, see above).
+`USPS_MAILER_ID`, `USPS_MANIFEST_MID` (optional, falls back to
+`USPS_MAILER_ID`), `USPS_EPS_ACCOUNT_NUMBER`, `USPS_API_BASE_URL`,
+`USPS_WEBHOOK_SECRET`.
 
 Frontend delta for USPS turned out to be one line —
 `ENABLED_SHIPPING_PROVIDERS` in `app-const.js`. The Shipment Settings
@@ -251,11 +259,17 @@ metadata, not hardcoded to `"ups"`, so USPS showed up in both automatically.
 - Neither UPS nor USPS has live credentials — everything is proven correct
   against mocked HTTP, not a real sandbox call. First real task once
   credentials exist for either: confirm the exact field names/webhook
-  header names noted as "best-effort" throughout both provider files.
-- USPS's Payments API step (above) has no implementation at all yet, only
-  a placeholder env var.
+  header names noted as "best-effort" throughout both provider files
+  (that now includes the Payments API request/response shape too).
 - Label format defaulted to PDF for both, per the earlier open question —
   never revisited since it turned out non-blocking.
+- No automated retry for a failed `createShipment` (e.g. USPS declining for
+  insufficient EPS funds) — discussed and deliberately not built. The
+  failure is atomic and safe (no Shipment document gets created if the
+  provider call fails, so the admin just retries the same "Create Shipment"
+  action later), and the stats dashboard's unshipped-orders count already
+  gives visibility into anything sitting unshipped — a cron job was
+  considered and explicitly decided against for now.
 
 ## Open questions
 

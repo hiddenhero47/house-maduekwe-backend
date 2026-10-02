@@ -64,14 +64,15 @@ enrollment layered on top of the developer-credential step.
    - a **CRID** (Customer Registration ID) — identifies the business to USPS
    - a **MID** (Mailer ID) — identifies you as a mailer, required on every label
    - an **EPA** (Enterprise Payment Account), via enrolling in "USPS Ship"
-2. **Enroll in EPS** (Electronic Postage System) or another approved
-   payment method — this is what actually funds postage. Without it,
-   label purchase fails even with otherwise-valid API credentials.
-   **This is the exact piece our security conversation was about** —
-   whether to hold this funding credential in the backend at all, or
-   redirect admins to usps.com to complete label purchase there instead.
-   See "If USPS becomes redirect-only" below for what changes if that's
-   the call from the meeting.
+2. **Enroll in EPS** (Electronic Postage System), specifically with
+   **Trust Account funding** — decided: full API integration with
+   auto-create-shipment for USPS is worth it, so this is the path, not the
+   redirect-to-usps.com alternative (kept below for the record, but no
+   longer the plan). Trust Account over ACH Debit specifically because it
+   bounds the risk of a leaked credential to whatever's preloaded, rather
+   than exposing a linked bank account directly — the API itself doesn't
+   care which you pick (`accountType: "EPS"` either way), this is purely a
+   choice made when funding the account in Business Customer Gateway.
 
 ### Developer Portal steps
 
@@ -88,8 +89,15 @@ enrollment layered on top of the developer-credential step.
 | `USPS_CLIENT_SECRET` | USPS APIs Developer Portal app registration (Consumer Secret) |
 | `USPS_CRID` | Business Customer Gateway enrollment |
 | `USPS_MAILER_ID` | Business Customer Gateway enrollment |
+| `USPS_MANIFEST_MID` | Optional — only needed if your account has a separate manifest-level MID from the organization MID above; falls back to `USPS_MAILER_ID` if unset |
+| `USPS_EPS_ACCOUNT_NUMBER` | The 10-digit EPA number from your EPS enrollment (step 2) — distinct from the CRID/MID |
 | `USPS_API_BASE_URL` | Already defaults to the test environment (`apis-tem.usps.com`) — switch to `apis.usps.com` for production |
-| `USPS_PAYMENT_AUTH_TOKEN` | **Placeholder only right now** — sourced from a separate USPS Payments API call tied to the EPS account, not implemented yet. This is the line item the redirect-vs-integrate decision is really about. |
+
+The `X-Payment-Authorization-Token` the Labels API needs is no longer a
+manual env var — `getPaymentAuthorizationToken()` in `config/usps.js` now
+fetches and caches a real one from USPS's Payments API automatically,
+using the values above. Nothing left to fill in for that piece beyond the
+env vars in this table.
 
 ### Webhook
 
@@ -97,13 +105,15 @@ enrollment layered on top of the developer-credential step.
 |---|---|
 | `USPS_WEBHOOK_SECRET` | **You generate this yourself**, same as UPS — enter it when creating the Subscriptions-Tracking webhook subscription in USPS's portal. |
 
-### If USPS becomes redirect-only (admin finishes label purchase on usps.com)
+### Redirect-only alternative — considered, not chosen
 
-If that's the direction from the meeting, here's exactly what changes:
+Kept for the record in case this gets revisited later; **the decision was
+to go full API integration with Trust Account funding instead** (see
+above), so none of this applies right now. If it ever did change direction:
 
-- **No `USPS_PAYMENT_AUTH_TOKEN`, no EPS enrollment needed on our side at
-  all.** The funding credential never touches the backend — it stays in
-  the admin's own USPS login session in their browser.
+- **No EPS enrollment needed on our side at all.** The funding credential
+  never touches the backend — it stays in the admin's own USPS login
+  session in their browser.
 - `uspsProvider.createShipment` would stop calling the Labels API. Instead
   it'd work the same way `internalProvider.createShipment` already does
   today — the admin completes the purchase on usps.com, then types the
