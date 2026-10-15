@@ -161,11 +161,16 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
       "/subscriptions-tracking/v3r2/subscriptions",
       requestBody,
       {
+        // Confirmed wrong and removed: a query param. The gateway's own
+        // OpenAPI validation rejects it outright ("query parameter is
+        // unexpected: correlationId") — this endpoint takes no query
+        // params at all per the spec. That the gateway does NOT reject
+        // correlationId as a body field/header (only flags query params as
+        // "unexpected") confirms the Subscription schema's
+        // `additionalProperties: true` is honored — the body/header are
+        // syntactically accepted, just not read into whatever the business
+        // layer checks. Still unresolved; see docs/shipping-provider-integration-plan.md.
         headers: { "X-Correlation-Id": correlationId },
-        // Body field and header both come back empty on USPS's side — try
-        // a query param too, belt-and-suspenders, before concluding this
-        // needs USPS API Support (see docs/shipping-provider-integration-plan.md).
-        params: { correlationId },
       },
     );
 
