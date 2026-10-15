@@ -40,20 +40,26 @@ const verifyShipmentWebhook = (req, res, next) => {
     }
 
     if (provider === "usps") {
-      // Different scheme from the others: USPS signs `${timestamp}${payload}`
-      // (not the raw body alone) with the subscription secret, digest in
-      // X-HMAC. Timestamp header name is best-effort — verify once a real
-      // USPS subscription payload is seen (see docs/shipping-provider-integration-plan.md).
+      // Per docs/subscriptions-tracking-v3r2_6.yaml (the real "Subscriptions
+      // - Tracking 3.2" spec): the digest is in the X-HMAC header (the only
+      // signature header USPS sends — `hmac-header` is a deprecated alias,
+      // there is no separate timestamp header). It's computed over
+      // `timestamp + payload`, where both are fields INSIDE the JSON body
+      // envelope ({ subscriptionId, subscriptionType, timestamp, payload }),
+      // not HTTP headers — `payload` itself is a JSON-formatted string that
+      // needs a second JSON.parse to reach the actual tracking fields.
       const hmacHeader = req.headers["x-hmac"];
-      const timestamp = req.headers["x-timestamp"];
 
-      if (!hmacHeader || !timestamp || !Buffer.isBuffer(req.body)) {
+      if (!hmacHeader || !Buffer.isBuffer(req.body)) {
         return res.status(400).json({ message: "Missing USPS signature header" });
       }
 
+      const envelope = JSON.parse(req.body.toString("utf8"));
+      const { timestamp, payload } = envelope;
+
       const digest = crypto
         .createHmac("sha256", process.env.USPS_WEBHOOK_SECRET)
-        .update(timestamp + req.body.toString("utf8"))
+        .update(`${timestamp}${payload}`)
         .digest("base64");
 
       const digestBuffer = Buffer.from(digest);
@@ -69,7 +75,7 @@ const verifyShipmentWebhook = (req, res, next) => {
 
       req.webhook = {
         provider: "usps",
-        event: JSON.parse(req.body.toString("utf8")),
+        event: JSON.parse(payload),
       };
 
       return next();
