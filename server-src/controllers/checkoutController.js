@@ -1015,6 +1015,16 @@ const resolveDestinationVat = async ({ country, state }) => {
 
 // Only confirm-checkout (allowQuoteReuse: true) may reuse a prior quote from
 // a checkout token — checkout itself always fetches fresh.
+//
+// Provider contract: getQuote resolves to null for "can't serve this
+// destination" (never throws for that) — only real faults (auth/network)
+// throw, and even those get caught below and treated as "try the next
+// provider" rather than failing checkout outright. Tries activeProvider,
+// then settings.fallbackProviders in order, stopping at the first quote;
+// only after exhausting the whole list do we tell the customer we don't
+// ship there. Returns { shippingFee, provider } — provider is whichever one
+// actually answered, which becomes the effective activeProvider for the
+// rest of checkout (Order.shippedBy, the checkout token's provider, etc.).
 const resolveShippingQuote = async ({
   items,
   address,
@@ -1036,33 +1046,65 @@ const resolveShippingQuote = async ({
       previousToken.checkoutHash === currentHash &&
       typeof previousToken.shippingFee === "number"
     ) {
-      return previousToken.shippingFee;
+      return { shippingFee: previousToken.shippingFee, provider: activeProvider };
     }
   }
 
-  const provider = getShippingProvider(activeProvider);
+  const providerItems = items.map((item) => ({
+    name: item.shopItem.name,
+    unitPrice: item.shopItem.price,
+    quantity: item.quantity,
+    weightGrams: kgToGrams(
+      toKg(item.shopItem?.weight?.value, item.shopItem?.weight?.unit),
+    ),
+  }));
 
-  const quote = await provider.getQuote({
-    items: items.map((item) => ({
-      name: item.shopItem.name,
-      unitPrice: item.shopItem.price,
-      quantity: item.quantity,
-      weightGrams: kgToGrams(
-        toKg(item.shopItem?.weight?.value, item.shopItem?.weight?.unit),
-      ),
-    })),
-    destination: {
-      country: address.country,
-      state: address.state,
-      city: address.city,
-      zipCode: address.zipCode,
-      fullAddress: address.fullAddress,
-    },
-    origin: settings.originAddress,
-    currency,
-  });
+  const destination = {
+    country: address.country,
+    state: address.state,
+    city: address.city,
+    zipCode: address.zipCode,
+    fullAddress: address.fullAddress,
+  };
 
-  return quote.shippingFee;
+  const candidateProviders = [
+    activeProvider,
+    ...(settings.fallbackProviders || []).filter((p) => p !== activeProvider),
+  ];
+
+  for (const providerName of candidateProviders) {
+    let provider;
+
+    try {
+      provider = getShippingProvider(providerName);
+    } catch (err) {
+      console.error(`[SHIPPING_QUOTE] Unknown provider "${providerName}":`, err.message);
+      continue;
+    }
+
+    try {
+      const quote = await provider.getQuote({
+        items: providerItems,
+        destination,
+        origin: settings.originAddress,
+        currency,
+      });
+
+      if (quote && typeof quote.shippingFee === "number") {
+        return { shippingFee: quote.shippingFee, provider: providerName };
+      }
+      // null — this provider can't serve the destination, try the next one.
+    } catch (err) {
+      console.error(`[SHIPPING_QUOTE] "${providerName}" failed:`, err.message);
+    }
+  }
+
+  const error = new Error(
+    "We don't currently ship to your location. Please try a different address.",
+  );
+  error.statusCode = 400;
+  error.type = "NOT_SERVICEABLE";
+  throw error;
 };
 
 const buildCheckoutSummary = async (req, options = {}) => {
@@ -1073,7 +1115,7 @@ const buildCheckoutSummary = async (req, options = {}) => {
   const { totalAmount, totalProductTax } = checkoutItemsTotals(items);
 
   const settings = await getShippingSettings();
-  const activeProvider = settings.enabled
+  let activeProvider = settings.enabled
     ? settings.activeProvider
     : SHIPPING_PROVIDERS.INTERNAL;
 
@@ -1091,7 +1133,7 @@ const buildCheckoutSummary = async (req, options = {}) => {
     vatRate = destinationVat.vatRate || 0;
     totalVat = roundMoney((totalAmount * vatRate) / 100);
 
-    shippingFee = await resolveShippingQuote({
+    const shippingResult = await resolveShippingQuote({
       items,
       address,
       settings,
@@ -1100,6 +1142,11 @@ const buildCheckoutSummary = async (req, options = {}) => {
       allowQuoteReuse: options.allowQuoteReuse,
       previousToken: options.previousToken,
     });
+
+    shippingFee = shippingResult.shippingFee;
+    // The provider that actually answered — may differ from the configured
+    // default if that one couldn't serve this destination and a fallback did.
+    activeProvider = shippingResult.provider;
   }
 
   const amountToPay = roundMoney(
@@ -1211,7 +1258,7 @@ const buildGuestCheckoutSummary = async (req, options = {}) => {
   const { totalAmount, totalProductTax } = checkoutItemsTotals(items);
 
   const settings = await getShippingSettings();
-  const activeProvider = settings.enabled
+  let activeProvider = settings.enabled
     ? settings.activeProvider
     : SHIPPING_PROVIDERS.INTERNAL;
 
@@ -1229,7 +1276,7 @@ const buildGuestCheckoutSummary = async (req, options = {}) => {
     vatRate = destinationVat.vatRate || 0;
     totalVat = roundMoney((totalAmount * vatRate) / 100);
 
-    shippingFee = await resolveShippingQuote({
+    const shippingResult = await resolveShippingQuote({
       items,
       address,
       settings,
@@ -1238,6 +1285,9 @@ const buildGuestCheckoutSummary = async (req, options = {}) => {
       allowQuoteReuse: options.allowQuoteReuse,
       previousToken: options.previousToken,
     });
+
+    shippingFee = shippingResult.shippingFee;
+    activeProvider = shippingResult.provider;
   }
 
   const amountToPay = roundMoney(
@@ -1287,4 +1337,5 @@ module.exports = {
   validateGroupedVariants,
   validateStockStateful,
   checkoutItemsTotals, // exported for direct unit testing — pure function, no DB
+  resolveShippingQuote, // exported for direct unit testing of the provider fallback loop
 };

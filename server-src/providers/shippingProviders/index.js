@@ -1,12 +1,13 @@
 const internalProvider = require("./internalProvider");
-// Shopify disabled for now — see docs/shipping-provider-architecture-plan.md
-// const shopifyProvider = require("./shopifyProvider");
+const upsProvider = require("./upsProvider");
+const uspsProvider = require("./uspsProvider");
 
 // Each provider implements getQuote/createShipment/getShipment. Callers
 // should only ever go through this registry, never branch on provider name.
 const providers = {
   [internalProvider.name]: internalProvider,
-  // [shopifyProvider.name]: shopifyProvider,
+  [upsProvider.name]: upsProvider,
+  [uspsProvider.name]: uspsProvider,
 };
 
 const getShippingProvider = (name) => {

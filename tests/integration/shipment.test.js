@@ -73,7 +73,7 @@ describe("POST /api/shipments/orders/:id (create)", () => {
     const token = generateToken(admin);
     const buyer = await createUser();
     const shopItem = await createShopItem();
-    const order = await createOrder({ user: buyer, shopItem, shippedBy: "shopify" }); // disabled
+    const order = await createOrder({ user: buyer, shopItem, shippedBy: "dhl" }); // not registered
 
     const res = await request(app)
       .post(`/api/shipments/orders/${order._id}`)

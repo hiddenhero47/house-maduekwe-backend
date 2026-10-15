@@ -59,7 +59,7 @@ describe("checkoutJwtHelper", () => {
       const items = [{ shopItem: { _id: "abc123" }, quantity: 1, selectedAttributes: [] }];
 
       const hash1 = buildCheckoutHash({ items, address, provider: "internal" });
-      const hash2 = buildCheckoutHash({ items, address, provider: "shopify" });
+      const hash2 = buildCheckoutHash({ items, address, provider: "ups" });
 
       expect(hash1).not.toBe(hash2);
     });
