@@ -3,9 +3,9 @@ const router = express.Router();
 const {
   runSetupScripts,
   clearCart,
-  clearOrdersAndPayments,
+  clearOrdersPaymentsAndShipments,
   normalizeAddresses,
-  migrateTaxAndVatFields,
+  registerUspsWebhook,
 } = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
 const { protect, secureRole } = require("../middleware/authMiddleware");
@@ -25,21 +25,21 @@ router.post(
 );
 
 router.post(
-  "/clear-orders-payments",
-  timeWindowGuard("2026-06-25T00:00:00Z", 24),
-  clearOrdersAndPayments,
-);
-
-router.post(
   "/normalize-addresses",
   timeWindowGuard("2026-09-04T00:00:00Z", 24),
   normalizeAddresses,
 );
 
+router.delete(
+  "/clear-orders-payments-shipments",
+  timeWindowGuard("2026-10-20T00:00:00Z", 24),
+  clearOrdersPaymentsAndShipments,
+);
+
 router.post(
-  "/migrate-tax-vat-fields",
-  timeWindowGuard("2026-09-15T00:00:00Z", 24),
-  migrateTaxAndVatFields,
+  "/register-usps-webhook",
+  timeWindowGuard("2026-10-21T00:00:00Z", 24),
+  registerUspsWebhook,
 );
 
 module.exports = router;
