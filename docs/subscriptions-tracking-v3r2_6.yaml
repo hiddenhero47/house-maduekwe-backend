@@ -1,0 +1,1575 @@
+openapi: 3.0.1
+info:
+  title: Subscriptions - Tracking
+  description: |
+    Contact Us: [USPS API Support](https://emailus.usps.com/s/usps-APIs) | [Terms of Service](https://about.usps.com/termsofuse.htm)
+   
+    Create a subscription to receive tracking events by mailer ID or tracking number. USPS will send a notification when there is new scan activity for the mailer ID or tracking number after the subscription is created. Manage all tracking subscriptions, in one place, by providing your server URL to receive Postal Service tracking events. Parse the tracking event data received on the server URL, or call back to the Tracking API for the full detailed set of events.
+    
+    Security for the API traffic is provided through IP whitelisting and HMAC. Both of these options are optional. For IP whitelisting, configure your endpoint to only receive traffic from USPS IP addresses. For HMAC, provide a secret in the subscription request that we use to hash the payload using the SHA-256 algorithm. The hash is available as part of the notification subscribers receive.
+
+    Subscriptions will be maintained as long as there is traffic going to the Listener URL.  After 30 days of inactivity, USPS may delete your subscription.  A warning email will be sent after 25 days of inactivity and a confirmation email will be sent once the subscription has been deleted.   After the subscription is deleted you will need to create a new subscription to receive future events.  
+   
+    Customers are permitted to use a maximum of 10 unique Listener URLs for all their subscriptions, and this limit is enforced per Home CRID. For example, if a customer has two CRIDs, they may use up to 20 unique Listener URLs. Once the unique URL limit is reached, webhook subscription requests will be rejected, and an alert notification will be sent each time a subscription is rejected due to exceeding the URL limit.
+  version: 3.2.10
+servers:
+  - url: https://apis.usps.com/subscriptions-tracking/v3r2
+    description: Production Environment Endpoint
+paths:
+  /subscriptions:
+    get:
+      tags:
+        - Resources
+      summary: Get list of all Subscriptions.
+      description: "Customer may use the GET end point to view their subscription data.  Get list of all Tracking Subscriptions you have created, by MID or Tracking Number.  It is not necessary to call the GET request to check if a subscription already exists because the POST request is already doing a duplicate check."
+      operationId: get-subscriptions-tracking
+      parameters:
+        - name: MID
+          in: query
+          description: Filter by MID. Comma-separated list of values.
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: trackingNumber
+          in: query
+          description: "Filter by tracking number. Comma-separated list of values."
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: offset
+          in: query
+          description: The number of items to skip before returning the results
+          schema:
+            minimum: 0
+            type: integer
+        - name: limit
+          in: query
+          description: The number of items to return
+          schema:
+            maximum: 100
+            minimum: 1
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        "200":
+          description: This will return a list of subscriptions based on the given values of the query parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscriptions:
+                    $ref: '#/components/schemas/Subscriptions'
+                  metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                additionalProperties: false
+            application/xml:
+              schema:
+                type: object
+                properties:
+                  subscriptions:
+                    $ref: '#/components/schemas/Subscriptions'
+                  metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                additionalProperties: false
+        "400":
+          description: Invalid label request information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "401":
+          description: Unauthorized.
+          headers:
+            WWW-Authenticate:
+              $ref: '#/components/headers/WWWAuthenticate'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "403":
+          description: Access Denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "429":
+          description: Too Many Requests. Too many requests have been received from client in a short amout of time.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "503":
+          description: Service Unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        default:
+          description: Other unanticipated errors that may occur.
+          content: {}
+      security:
+        - OAuth:
+            - subscriptions-tracking
+    post:
+      tags:
+        - Resources
+      summary: Create a Subscription.
+      description: Create a Subscription to Tracking Events Topic. A subscription can be created for a mailer ID or a tracking number. You also can specify what type of tracking events you want to receive.  USPS will send a notification when there is new scan activity for the mailer ID or tracking number after the subscription is created. The POST /subscriptions checks if the subscription already exists and does not create a new subscription if it exists. This prevents duplicates.
+      operationId: post-subscriptions-tracking
+      requestBody:
+        description: The input parameters corresponding to the supported grant types.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackingSubscription'
+            examples:
+              MID-Subscription:
+                $ref: '#/components/examples/Subscription'
+              TrackingNumber-Subscription:
+                $ref: '#/components/examples/Subscription-2'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/TrackingSubscription'
+        required: true
+      responses:
+        "201":
+          description: Subscription Created.
+          headers:
+            Location:
+              description: The URL to the newly created resource.
+              style: simple
+              explode: false
+              schema:
+                type: string
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingSubscription'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/TrackingSubscription'
+        "400":
+          description: Invalid request information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "401":
+          description: Unauthorized.
+          headers:
+            WWW-Authenticate:
+              $ref: '#/components/headers/WWWAuthenticate'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "403":
+          description: Access Denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "429":
+          description: Too Many Requests. Too many requests have been received from client in a short amount of time.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "503":
+          description: Service Unavailable.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        default:
+          description: Other unanticipated errors that may occur.
+          content: {}
+      security:
+        - OAuth:
+            - subscriptions-tracking
+  /subscriptions/{subscriptionId}:
+    get:
+      tags:
+        - Resources
+      summary: Get a Subscription by ID.
+      description: Get a previously created subscription by its unique id.
+      operationId: get-subscriptions-tracking-id
+      parameters:
+        - name: subscriptionId
+          in: path
+          description: The unique identifier of the subscription.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: This will return the unique subscription.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingSubscription'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/TrackingSubscription'
+        "400":
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "401":
+          description: Unauthorized.
+          headers:
+            WWW-Authenticate:
+              $ref: '#/components/headers/WWWAuthenticate'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "403":
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "429":
+          description: Too Many Requests. Too many requests have been received from client in a short amount of time.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "503":
+          description: Service Unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        default:
+          description: Other unanticipated errors that may occur.
+          content: {}
+      security:
+        - OAuth:
+            - subscriptions-tracking
+    put:
+      tags:
+        - Resources
+      summary: Edit Subscription by ID.
+      description: "Use this endpoint to update the callback url, secret, or status.  If filter properties need to change, a new subscription needs to be created."
+      operationId: put-subscriptions-tracking-id
+      parameters:
+        - name: subscriptionId
+          in: path
+          description: The unique identifier of the subscription.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+        - name: If-Match
+          in: header
+          description: The value of the entity tag indicating the version of the resource to get or update. All DELETE and PUT operations require an ETag to be supplied as the If-Match parameter.  The ETag is returned in the GET operation and is good for one hour or until it is used in a DELETE or PUT operation.
+          required: true
+          schema:
+            type: string
+            example: 33a64df551425fcc55e4d42a148795d9f25f89d4
+      requestBody:
+        description: The input parameters corresponding to the supported grant types.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackingSubscription'
+            examples:
+              Subscription-list:
+                $ref: '#/components/examples/Subscription'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/TrackingSubscription'
+        required: true
+      responses:
+        "200":
+          description: Subscription Updated
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackingSubscription'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/TrackingSubscription'
+        "400":
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "401":
+          description: Unauthorized.
+          headers:
+            WWW-Authenticate:
+              $ref: '#/components/headers/WWWAuthenticate'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "403":
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "429":
+          description: Too Many Requests. Too many requests have been received from client in a short amout of time.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "503":
+          description: Service Unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        default:
+          description: Other unanticipated errors that may occur.
+          content: {}
+      security:
+        - OAuth:
+            - subscriptions-tracking
+    delete:
+      tags:
+        - Resources
+      summary: Delete a Subscription by ID.
+      description: Use this endpoint to delete a Subscription by its unique identifier.
+      operationId: delete-subscriptions-tracking-id
+      parameters:
+        - name: subscriptionId
+          in: path
+          description: The unique identifier of the subscription.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+        - name: If-Match
+          in: header
+          description: The value of the entity tag indicating the version of the resource to get or update. All DELETE and PUT operations require an ETag to be supplied as the If-Match parameter.  The ETag is returned in the GET operation and is good for one hour or until it is used in a DELETE or PUT operation.
+          required: true
+          schema:
+            type: string
+            example: 33a64df551425fcc55e4d42a148795d9f25f89d4
+      responses:
+        "204":
+          description: Subscription Deleted (no content)
+        "400":
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "401":
+          description: Unauthorized.
+          headers:
+            WWW-Authenticate:
+              $ref: '#/components/headers/WWWAuthenticate'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "403":
+          description: Access Denied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "429":
+          description: Too Many Requests. Too many requests have been received from client in a short amout of time.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "503":
+          description: Service Unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        default:
+          description: Other unanticipated errors that may occur.
+          content: {}
+      security:
+        - OAuth:
+            - subscriptions-tracking
+  /notifications:
+    post:
+      tags:
+        - Listener URL Specification
+      summary: Notification event which the API caller should implement.
+      description: |
+        Notification event API callers implement to receive tracking event data. This is the url in which data will be pushed to. Each subscriptions notification response contains a field named `payload` which is a JavaScript object that has been converted into a JSON formatted string. The text should be converted into a JavaScript object via JSON.parse(). The JavaScript object notation (JSON) schemas are provided in the API specification.  The Tracking Subscription Event example should be parsed with the Tracking Subscription Event schema and the Detailed Scan Subscription Event example should be parsed with the Detailed Scan Subscription Event schema.
+      operationId: post-notification
+      parameters:
+        - name: X-HMAC
+          in: header
+          description: "If a secret was provided with the subscription, this field will contain an HMAC hash encoded in Base64.  To compute the same hash for comparison,  concatenate the value of the timestamp field and the value of the payload field, hash the concatenated string using the shared secret and the SHA256 hash function, and encode the output in Base64.  The result should match the value of the X-HMAC Http header.  "
+          required: false
+          style: simple
+          explode: false
+          schema:
+            type: string
+        - name: hmac-header
+          in: header
+          description: "If a secret was provided with the subscription, this field will contain an HMAC hash encoded in Base64.  To compute the same hash for comparison,  concatenate the value of the timestamp field and the value of the payload field, hash the concatenated string using the shared secret and the SHA256 hash function, and encode the output in Base64.  The result should match the value of the X-HMAC Http header."
+          required: false
+          deprecated: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+                - $ref: '#/components/schemas/TrackingNotification'
+                - $ref: '#/components/schemas/ScanEventExtractTrackingNotification'
+            examples:
+              'Tracking Subscription Event':
+                $ref: '#/components/examples/TrackingNotification'
+              'Detailed Scan Subscription Event':
+                $ref: '#/components/examples/ScanEventExtractTrackingNotification'
+        required: true
+      responses:
+        "200":
+          description: Success
+          headers:
+            Content-Type:
+              description: The media type of the response.
+              style: simple
+              explode: false
+              schema:
+                type: string
+                default: application/json
+        "400":
+          description: Bad Request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "403":
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "429":
+          description: Too Many Requests. Too many requests have been received from client in a short amout of time.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        "503":
+          description: Service Unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+            examples: {}
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        default:
+          description: Other unanticipated errors that may occur.
+          content: {}
+components:
+  schemas:
+    TrackingSubscription:
+      title: Subscription
+      description: Subscription for the tracking event data the consumer is receiving.
+      allOf:
+        - $ref: '#/components/schemas/Subscription'
+        - required:
+            - filterProperties
+          type: object
+          properties:
+            filterProperties:
+              description: The filters that should be applied to the subscription. The structure of this property will change dependent on the type of subscription a client is signing up for.
+              oneOf:
+                - $ref: '#/components/schemas/MIDTrackingFilter'
+                - $ref: '#/components/schemas/TrackingNumberFilter'
+          additionalProperties: true
+    Subscriptions:
+      title: Subscription List
+      type: array
+      description: List of subscriptions.
+      items:
+        $ref: '#/components/schemas/TrackingSubscription'
+    Links:
+      title: Hypermedia Links
+      type: array
+      description: Hypermedia links to related resources.
+      items:
+        required:
+          - href
+          - rel
+        type: object
+        properties:
+          rel:
+            type: array
+            description: The short name(s) of the relationship corresponding to the link.
+            items:
+              type: string
+          title:
+            type: string
+            description: A human-readable description of the link relationship.
+          href:
+            type: string
+            description: The URL to a related resource.
+            format: uri
+          method:
+            type: string
+            description: The HTTP method to use to access this link.
+            enum:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+          submissionMediaType:
+            type: string
+            description: The media type of the resource request.
+          targetMediaType:
+            type: string
+            description: The media type of the resource response.
+        additionalProperties: false
+    ErrorMessage:
+      title: Error
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          description: The version of the API that was used and that raised the error.
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: The error status code that has been returned in response to the request.
+            message:
+              type: string
+              description: A human-readable message describing the error.
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: The status code response returned to the client.
+                  code:
+                    type: string
+                    description: An internal subordinate code used for error diagnosis.
+                  title:
+                    type: string
+                    description: A human-readable title that identifies the error.
+                  detail:
+                    type: string
+                    description: A human-readable description of the error that occurred.
+                  source:
+                    type: object
+                    properties:
+                      parameter:
+                        type: string
+                        description: The input in the request which caused an error.
+                      example:
+                        type: string
+                        description: An example of a valid value for the input parameter.
+                    additionalProperties: true
+                    description: The element that is suspected of originating the error.  Helps to pinpoint the problem.
+                additionalProperties: true
+          additionalProperties: true
+          description: The high-level error that has occurred as indicated by the status code.
+      additionalProperties: true
+      description: Standard error message response.
+    Subscription:
+      title: Subscription
+      required:
+        - adminNotification
+        - listenerURL
+        - secret
+      type: object
+      properties:
+        subscriptionId:
+          type: string
+          description: Unique Identifier created for this Subscription.
+          readOnly: true
+        listenerURL:
+          type: string
+          description: "Customer URL in which subscription data will be sent. You can parse the data received on the server URL, and you can call back to the Tracking API for the full detailed set of events."
+          maxLength: 200
+          format: uri
+          example: https://myserver.com/listener
+        secret:
+          maxLength: 32
+          minLength: 32
+          type: string
+          description: Customer supplied secret USPS will use to create a hash value.  The hash will be provided in the Notification payload. USPS will use the SHA-256 algorithm to create the hash value.
+        status:
+          type: string
+          description: "Current status of the subscription.  USPS will post notifications to the supplied listenerURL.  If the listenerURL cannot be reached or is invalid, USPS will change the status of the subscription to SUSPENDED.  The customer has the option of changing the status to DISABLED.  It is recommended the customer change the status to DISABLED if they know their endpoint will not be active, i.e operational maintenance."
+          enum:
+            - DISABLED
+            - ENABLED
+            - SUSPENDED
+        statusReason:
+          type: string
+          description: When status is suspended the Status Reason will return why it was suspended
+          readOnly: true
+          example: Unable to reach listener
+        adminNotification:
+          maxItems: 3
+          minItems: 1
+          type: array
+          description: Customer can supply an email address to receive important updates on the status and events related to the subscription.
+          items:
+            $ref: '#/components/schemas/EmailNotification'
+        creationTimestamp:
+          type: string
+          description: When the subscription was originally created.
+          format: date-time
+          readOnly: true
+        statusChangeTimestamp:
+          type: string
+          description: Time when the status was last changed
+          format: date-time
+          readOnly: true
+        expirationTimestamp:
+          type: string
+          description: When the subscription expires.
+          format: date-time
+          readOnly: true
+        accessControl:
+          type: string
+          description: |
+            Details on if the Tracking request was free or charged based on MID access through an IP Agreement.
+
+            - `FREE` - The Tracking request was free.
+            - `IP_AGREEMENT` - The tracking request was charged based on MID access through an IP Agreement.
+          enum:
+            - FREE
+            - IP_AGREEMENT
+          readOnly: true
+      additionalProperties: true
+      description: Subscription for the tracking event data the consumer is receiving.
+    EmailNotification:
+      type: object
+      properties:
+        email:
+          maxLength: 100
+          type: string
+          description: 'E-mail address of recipient. Valid e-mail addresses must be used used for notifications via email. '
+          format: email
+    MIDTrackingFilter:
+      title: Tracking subscription based on a MID
+      required:
+        - MID
+      type: object
+      properties:
+        MID:
+          pattern: "^(\\d{6}|\\d{9})$"
+          type: string
+          description: "Specify the Mailer ID that should be included in the subscription. Once a subscription is created this field cannot be changed through a future edit, instead the subscription should be deleted and a new subscription should be created."
+        trackingEventTypes:
+          type: array
+          description: |-
+            Specify what tracking events should be include in the subscription:</p> 
+            ALL_UPDATES - Receive a message any time there is a new tracking update. This option does not include Package Delayed updates.</p> 
+            DELIVERY_ACTIVITY - Receive a message when package has been delivered, delayed, or action is needed (e.g., Schedule Redelivery or Pickup) related to your package.</p>
+            PACKAGE_DELAYED - Receive a message when your package has been delayed.</p>
+            SCAN_EVENT_EXTRACT - Receive a message for all package updates in Detailed Scan Subscription format.
+                                 Specialized version of the ALL_UPDATES Tracking Event Type for configured mailers.
+          items:
+            type: string
+            enum:
+              - ALL_UPDATES
+              - DELIVERY_ACTIVITY
+              - PACKAGE_DELAYED
+              - SCAN_EVENT_EXTRACT
+          default:
+            - ALL_UPDATES
+        includeVeriPoint:
+          type: boolean
+          description: "Indicate opt-in (true) or opt-out (false) preference to receive veriPoint delivery scan location certified information for the item when available.  This should only be included in the request for VeriPoint-eligible users."
+      additionalProperties: true
+      description: Filter by MID
+    TrackingNumberFilter:
+      title: Tracking subscription based on a specific tracking number
+      required:
+        - trackingNumber
+      type: object
+      properties:
+        trackingNumber:
+          type: string
+          description: "Specify the Mailer ID that should be included in the subscription. Once a subscription is created this field cannot be changed through a future edit, instead the subscription should be deleted and a new subscription should be created."
+        trackingEventTypes:
+          type: array
+          description: |-
+            Specify what tracking events should be include in the subscription:</p> 
+            ALL_UPDATES - Receive a message any time there is a new tracking update. This option does not include Package Delayed updates.</p> 
+            DELIVERY_ACTIVITY - Receive a message when package has been delivered, delayed, or action is needed (e.g., Schedule Redelivery or Pickup) related to your package.</p>
+            PACKAGE_DELAYED - Receive a message when your package has been delayed.</p>
+          items:
+            type: string
+            enum:
+              - ALL_UPDATES
+              - DELIVERY_ACTIVITY
+              - PACKAGE_DELAYED
+          default:
+            - ALL_UPDATES
+        includeVeriPoint:
+          type: boolean
+          description: "Indicate opt-in (true) or opt-out (false) preference to receive veriPoint delivery scan location certified information for the item when available.  This should only be included in the request for VeriPoint-eligible users."
+      additionalProperties: true
+      description: Filter by tracking number
+    TrackingPayload:
+      title: Tracking Payload
+      type: object
+      properties: {}
+      additionalProperties: true
+      description: Tracking Payload Information
+      allOf:
+      - $ref: '#/components/schemas/CoreTrackingDetail'
+      - type: object
+        properties:
+          deliveryDateExpectation:
+            $ref: '#/components/schemas/DeliveryDateExpectation'
+      - type: object
+        properties:
+          servicesEligibility:
+            $ref: '#/components/schemas/ServicesEligibility'
+      - type: object
+        properties:
+          trackingEvents:
+            $ref: '#/components/schemas/TrackingEvents'
+    ScanEventExtractTrackingPayload:
+      title: Scan Event Extract Tracking Payload
+      type: object
+      properties:
+        links:
+          $ref: '#/components/schemas/Links'
+      additionalProperties: true
+      description: Scan Event Extract Tracking Payload Information
+      allOf:
+      - $ref: '#/components/schemas/ScanEventDetails'
+      - type: object
+        properties:
+          deliveryDateExpectation:
+            $ref: '#/components/schemas/ScanEventExtractDeliveryDateExpectation'
+      - type: object
+        properties:
+          servicesEligibility:
+            $ref: '#/components/schemas/ServicesEligibility'
+      - type: object
+        properties:
+          trackingEvent:
+            $ref: '#/components/schemas/ScanEventExtractTrackingEvent'
+    TrackingNotification:
+      title: Tracking Subscription Event 
+      type: object
+      required:
+        - subscriptionId
+        - subscriptionType
+        - timestamp
+        - payload
+      properties:
+        subscriptionId:
+          type: string
+          description: Unique identifier created for this Subscription.
+          example: "12345678"
+        subscriptionType:
+          type: string
+          description: The name of the topic related to this event.
+          example: "Subscription Name"
+        timestamp:
+          type: string
+          description: "Timestamp message was generated, in ISO-8601 format."
+          format: date-time     
+          example: "2024-12-27T19:05:42.747Z"
+        payload:
+          type: string
+          description: Tracking subscription details converted into a JSON formatted string.
+          example: |
+            {\"trackingNumber\":\"12345678\",\"associatedTrackingNumber\":\"12345678\",\"destinationCity\":\"DETROIT\",\"destinationCountry\":\"US\",\"destinationState\":\"MI\",\"destinationZIPCode\":\"12345\",\"kahalaIndicator\":true,\"mailClass\":\"Priority Mail<SUP>&reg;</SUP>\",\"mailClassCode\":\"PM\",\"mailingDate\":\"2025-02-07\",\"mailType\":\"DM\",\"originCity\":\"ORLANDO\",\"originCountry\":\"US\",\"originState\":\"FL\",\"originZIPCode\":\"67890\",\"services\":[\"USPS Tracking<SUP>&#174;</SUP>\"],\"serviceTypeCode\":\"055\",\"status\":\"Delivered, Front Door/Porch\",\"statusCategory\":\"Accepted\",\"statusSummary\":\"Your item was delivered at the front door or porch at 12:55 pm on February 7, 2025 in DETROIT, MI 12345\",\"uniqueTrackingID\":\"12345678\",\"deliveryDateExpectation\":{\"endOfDay\":\"string\",\"expectedDeliveryDate\":\"2025-02-07\",\"guaranteedDeliveryDate\":\"string\",\"guaranteedDetails\":\"string\",\"predictedDeliveryDate\":\"2025-02-07\",\"predictedDeliverySource\":\"string\",\"predictedDeliveryWindowStartTime\":\"12:15pm\",\"predictedDeliveryWindowEndTime\":\"3:15pm\"},\"servicesEligibility\":{\"proofOfDeliveryEnabled\":true,\"RREEnabled\":true,\"trackingProofOfDeliveryEnabled\":true},\"trackingEvents\":[{\"actionCode\":\"A\",\"CODAmountDue\":\"50.99\",\"eventCity\":\"DETROIT\",\"eventCode\":\"01\",\"eventCountry\":\"US\",\"eventPartner\":\"SomePartner\",\"eventState\":\"MI\",\"eventTimestamp\":\"2025-02-07T12:55:12-05:00\",\"eventType\":\"Delivered, Front Door/Porch\",\"eventZIPCode\":\"12345\",\"firm\":\"SomeFirm\",\"GMTTimestamp\":\"2025-02-07T17:55:12Z\",\"GMTOffset\":\"-5:00\",\"reasonCode\":\"10\",\"recipientName\":\"John Doe\",\"veriPoint\":true}]}
+        links:
+          title: Hypermedia Links
+          type: array
+          description: Hypermedia links to related resources.
+          items:
+            required:
+              - href
+              - rel
+            type: object
+            properties:
+              rel:
+                type: array
+                description: The short name(s) of the relationship corresponding to the link.
+                items:
+                  type: string
+              title:
+                type: string
+                description: A human-readable description of the link relationship.
+              href:
+                type: string
+                description: The URL to a related resource.
+                format: uri
+              method:
+                type: string
+                description: The HTTP method to use to access this link.
+                enum:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+              submissionMediaType:
+                type: string
+                description: The media type of the resource request.
+              targetMediaType:
+                type: string
+                description: The media type of the resource response.
+            additionalProperties: false
+      additionalProperties: true
+      description: Tracking Subscription Event
+    ScanEventExtractTrackingNotification:
+      title: Scan Event Extract Subscription Event
+      type: object
+      required:
+        - subscriptionId
+        - subscriptionType
+        - timestamp
+        - payload
+      properties:
+        subscriptionId:
+          type: string
+          description: Unique identifier created for this Subscription.
+          example: "12345678"
+        subscriptionType:
+          type: string
+          description: The name of the topic related to this event.
+          example: "Subscription Name"
+        timestamp:
+          type: string
+          description: "Timestamp message was generated, in ISO-8601 format."
+          format: date-time     
+          example: "2024-12-27T19:05:42.747Z"
+        payload:
+          type: string
+          description: Detailed scan subscription event notifications details converted into a JSON formatted string.
+          example: |
+            {\"trackingNumber\":\"12345678\",\"associatedTrackingNumber\":\"12345678\",\"destinationCity\":\"DETROIT\",\"destinationCountry\":\"US\",\"destinationState\":\"MI\",\"destinationZIPCode\":\"12345\",\"kahalaIndicator\":true,\"mailClass\":\"Priority Mail<SUP>&reg;</SUP>\",\"mailClassCode\":\"PM\",\"mailingDate\":\"2025-02-07\",\"mailType\":\"DM\",\"originCity\":\"ORLANDO\",\"originCountry\":\"US\",\"originState\":\"FL\",\"originZIPCode\":\"67890\",\"services\":[\"USPS Tracking<SUP>&#174;</SUP>\"],\"serviceTypeCode\":\"055\",\"status\":\"Delivered, Front Door/Porch\",\"statusCategory\":\"Accepted\",\"statusSummary\":\"Your item was delivered at the front door or porch at 12:55 pm on February 7, 2025 in DETROIT, MI 12345\",\"uniqueTrackingID\":\"12345678\",\"addressStandardizedCode\":\"01\",\"addressServiceParticipantCode\":\"12345678\",\"ancillaryServiceEndorsement\":\"J\",\"customerReferenceNumber\":[\"123ABC\"],\"deliveryAddress\":\"123 MAIN ST\",\"destinationZIPCodePlus4\":\"1857\",\"electronicFileNumber\":\"9275012345678912345678\",\"impbComplianceReportCode\":\"20\",\"logisticsManagerMailerID\":\"941233312\",\"mailerID\":\"912345678\",\"mailerName\":\"ABC Company\",\"mailOwnerMailerID\":\"941233312\",\"originalTrackingNumber\":\"12345678\",\"postalCode\":\"A0A9A0\",\"productWeight\":\"14.3\",\"startTheClockTimestamp\":\"2025-02-04T14:03:12-05:00\",\"deliveryDateExpectation\":{\"endOfDay\":\"by 5:00 pm\",\"expectedDeliveryDate\":\"2025-02-07\",\"guaranteedDeliveryDate\":\"2025-02-07\",\"guaranteedDetails\":\"MoneyBack Guarantee\",\"predictedDeliveryDate\":\"2025-02-07\",\"predictedDeliverySource\":\"TRP\",\"predictedDeliveryWindowStartTime\":\"12:15pm\",\"predictedDeliveryWindowEndTime\":\"3:15pm\",\"deliveryDateModifiedIndicator\":\"1\"},\"servicesEligibility\":{\"proofOfDeliveryEnabled\":true,\"RREEnabled\":true,\"trackingProofOfDeliveryEnabled\":true},\"trackingEvents\":[{\"actionCode\":\"A\",\"CODAmountDue\":\"50.99\",\"eventCity\":\"DETROIT\",\"eventCode\":\"01\",\"eventCountry\":\"US\",\"eventPartner\":\"SomePartner\",\"eventState\":\"MI\",\"eventTimestamp\":\"2025-02-07T12:55:12-05:00\",\"eventType\":\"Delivered, Front Door/Porch\",\"eventZIPCode\":\"12345\",\"firm\":\"SomeFirm\",\"GMTTimestamp\":\"2025-02-07T17:55:12Z\",\"GMTOffset\":\"-5:00\",\"reasonCode\":\"10\",\"recipientName\":\"John Doe\",\"veriPoint\":true}]}
+        links:
+          title: Hypermedia Links
+          type: array
+          description: Hypermedia links to related resources.
+          items:
+            required:
+              - href
+              - rel
+            type: object
+            properties:
+              rel:
+                type: array
+                description: The short name(s) of the relationship corresponding to the link.
+                items:
+                  type: string
+              title:
+                type: string
+                description: A human-readable description of the link relationship.
+              href:
+                type: string
+                description: The URL to a related resource.
+                format: uri
+              method:
+                type: string
+                description: The HTTP method to use to access this link.
+                enum:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+              submissionMediaType:
+                type: string
+                description: The media type of the resource request.
+              targetMediaType:
+                type: string
+                description: The media type of the resource response.
+            additionalProperties: false
+      additionalProperties: true
+      description: Detailed Scan Subscription Event
+    CoreTrackingDetail:
+      title: Core Tracking Detail Fields
+      type: object
+      properties:
+        trackingNumber:
+          type: string
+          description: "The human-readable representation of the item, commonly known as a tracking number."
+        associatedTrackingNumber:
+          type: string
+          description: Additional tracking number on the item.
+        destinationCity:
+          type: string
+          description: The destination city.
+        destinationCountry:
+          maxLength: 2
+          type: string
+          description: The two-character destination country code.
+        destinationState:
+          $ref: '#/components/schemas/State'
+        destinationZIPCode:
+          pattern: "^\\d{5}$"
+          type: string
+          description: The destination ZIP Code™.
+          example: "12345"
+        kahalaIndicator:
+          type: boolean
+          description: Kahala Posts Group (KPG) member indicator.
+        mailClass:
+          type: string
+          description: Indicates the mail class of the item.
+        mailClassCode:
+          type: string
+          description: Indicates the abbreviated mail class of the item.
+        mailingDate:
+          $ref: '#/components/schemas/MailingDate'
+        mailType:
+          type: string
+          description: "Indicates the mail type of the item (e.g. Domestic, International Inbound, Military Outbound)."
+        originCity:
+          type: string
+          description: The origin city.
+        originCountry:
+          maxLength: 2
+          type: string
+          description: The two-character origin country code.
+        originState:
+          $ref: '#/components/schemas/State'
+        originZIPCode:
+          pattern: "^\\d{5}$"
+          type: string
+          description: The origin ZIP Code™.
+          example: "12345"
+        services:
+          type: array
+          description: "Additional services on the item. May be purchased or inherent to the product. Refer to USPS® Pub 199 Appendix J: Table 7 Extra Service Codes for all possible published values."
+          maxItems: 99
+          xml:
+            name: services
+            wrapped: true
+          items:
+            type: string
+        serviceTypeCode:
+          type: string
+          description: "The service type code of the item. Refer to USPS® Pub 199 Appendix I: Intelligent Mail Package Barcode Service Type Codes for all possible published values."
+        status:
+          type: string
+          description: The item status.
+        statusCategory:
+          type: string
+          description: The item status category.
+        statusSummary:
+          type: string
+          description: The status summary.
+          example: "Your item was delivered at 12:55 pm on April 05, 2010 in FALMOUTH, MA 02540"
+        uniqueTrackingID:
+          type: string
+          description: The unique tracking identifier used to reconcile duplicate tracking number scenarios.
+      additionalProperties: false
+      description: Shared tracking attributes between internal and external requests.
+    MailingDate:
+      title: Mailing Date
+      type: string
+      description: Used to reconcile duplicate tracking number scenarios.
+      format: date
+    State:
+      maxLength: 2
+      minLength: 2
+      pattern: ^(AA|AE|AL|AK|AP|AS|AZ|AR|CA|CO|CT|DE|DC|FM|FL|GA|GU|HI|ID|IL|IN|IA|KS|KY|LA|ME|MH|MD|MA|MI|MN|MS|MO|MP|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PW|PA|PR|RI|SC|SD|TN|TX|UT|VT|VI|VA|WA|WV|WI|WY)$
+      type: string
+      description: The two-character state code.
+    ScanEventDetails:
+      title: Detailed Scan Subscription Event
+      type: object
+      properties:
+        addressStandardizedCode:
+          type: string
+          description: "Indicates if the delivery address information is the original address as provided in the shipping services file, if the delivery address has been standardized or if the delivery address information is invalid address."
+          example: "01"
+        addressServiceParticipantCode:
+          type: string
+          description: "6 or 9 digit Mailer ID or a 7 digit alphanumeric code."
+        ancillaryServiceEndorsement:
+          type: string
+          description: "Address correction service code and option."
+          example: "J"
+        customerReferenceNumber:
+          type: array
+          description: "Reference numbers used for customer internal identification purposes."
+          items:
+            type: string
+          example:
+              - "123ABC"
+        deliveryAddress:
+          type: string
+          description: "Delivery address in the destination address or Standardized Address."
+          example: "123 MAIN ST"
+        destinationZIPCodePlus4:
+          pattern: "^\\d{4}$"
+          type: string
+          description: "Destination ZIP +4."
+          example: "1857"
+        electronicFileNumber:
+          type: string
+          description: "Unique number assigned to identify the electronic file."
+          example: "9275012345678912345678"
+        impbComplianceReportCode:
+          type: string
+          description: "IMpb Compliance Report Code."
+          example: "20"
+        logisticsManagerMailerID:
+          type: string
+          description: "MID of company that manages the mailing of this shipment."
+          example: "941233312"
+        mailerID:
+          type: string
+          description: "Mailer ID number unique to this mailer as shown in the Postal Service database. Six-or Nine-digit MID."
+          example: "912345678"
+        mailerName:
+          type: string
+          description: "Mailer name associated with Mailer ID."
+          example: "ABC Company"
+        mailOwnerMailerID:
+          type: string
+          description: "Mail Owner Mailer ID."
+          example: "941233312"
+        originalTrackingNumber:
+          type: string
+          description: "Original tracking number."
+        postalCode:
+          type: string
+          description: "Foreign country postal code."
+          example: "A0A9A0"
+        productWeight:
+          type: string
+          description: "Item weight, in ounces"
+          example: "14.3"
+        startTheClockTimestamp:
+          type: string
+          format: date-time
+          example: "2024-04-04T14:03:12-07:00"
+      allOf:
+      - $ref: '#/components/schemas/CoreTrackingDetail'
+    DeliveryDateExpectation:
+      title: Delivery Date Expectation
+      type: object
+      properties:
+        endOfDay:
+          type: string
+          description: The end of day timeframe provided is the estimated timeframe by when the carrier will attempt to deliver the package.
+        expectedDeliveryDate:
+          type: string
+          description: "Indicates the Expected Delivery Date for an item, if available."
+          format: date
+        guaranteedDeliveryDate:
+          $ref: '#/components/schemas/GuaranteedDeliveryDateOptions'
+        guaranteedDetails:
+          type: string
+          description: Special messaging related to the guarantee.
+        predictedDeliveryDate:
+          type: string
+          description: "The Predicted Delivery Date for the item, if available."
+          format: date
+        predictedDeliverySource:
+          type: string
+          description: The source providing Predicted Delivery details for the item.
+        predictedDeliveryWindowStartTime:
+          type: string
+          description: The Predicted Delivery Window start time.
+        predictedDeliveryWindowEndTime:
+          type: string
+          description: The Predicted Delivery Window end time.
+      additionalProperties: false
+      description: Detailed tracking information relative to when the item is expected to arrive.
+    EventTimestamp:
+      type: string
+      oneOf:
+        - $ref: '#/components/schemas/EventDate'
+        - $ref: '#/components/schemas/EventDateTime'
+    GuaranteedDeliveryDate:
+      type: string
+      description: "Guaranteed Delivery Date, date only."
+      format: date
+    GuaranteedDeliveryText:
+      type: string
+      description: "Guaranteed Delivery Date, text only (e.g. 3 Business Days)."
+    GuaranteedDeliveryTimestamp:
+      type: string
+      description: "Guaranteed Delivery Date, date and time."
+      format: date-time
+    GuaranteedDeliveryDateOptions:
+      description: "Guaranteed Delivery information, if available. Value may follow date, date + time, or text format (e.g. YYYY-MM-DD, YYYY-MM-DDTHH:MI, or \"# Business Days\")."
+      type: string
+      oneOf:
+        - $ref: '#/components/schemas/GuaranteedDeliveryDate'
+        - $ref: '#/components/schemas/GuaranteedDeliveryText'
+        - $ref: '#/components/schemas/GuaranteedDeliveryTimestamp'
+    ScanEventExtractDeliveryDateExpectation:
+      title: Scan Event Extract Delivery Date Expectation
+      type: object
+      properties:
+        deliveryDateModifiedIndicator:
+          type: string
+          description: "Indicates whether the Delivery Date has been modified from a previously provided date."
+          example: "1"
+      allOf:
+      - $ref: '#/components/schemas/DeliveryDateExpectation'
+      additionalProperties: false
+    ServicesEligibility:
+      title: Service Eligibility
+      required:
+      - RREEnabled
+      - proofOfDeliveryEnabled
+      - trackingProofOfDeliveryEnabled
+      type: object
+      properties:
+        proofOfDeliveryEnabled:
+          type: boolean
+          description: Signifies if Proof of Delivery service is enabled.
+        RREEnabled:
+          type: boolean
+          description: Signifies if Return Receipt Electronic service is enabled.
+        trackingProofOfDeliveryEnabled:
+          type: boolean
+          description: Signifies if Tracking Proof of Delivery service is enabled.
+      additionalProperties: false
+      description: Indicates whether item is eligible for various services.
+    TrackingEvents:
+      title: Tracking Events
+      maxItems: 99
+      minItems: 0
+      type: array
+      description: The detailed tracking event information for the requested tracking number in reverse chronological order
+      xml:
+        name: trackingEvents
+        wrapped: true
+      items:
+        $ref: '#/components/schemas/TrackingEvent'
+    TrackingEvent:
+      title: Tracking Event Information
+      type: object
+      properties:
+        acceptanceTypeCategory:
+          type: string
+          description: The acceptance type category, which helps to explain if the acceptance activity was completed with a USPS employee, was customer self-service, etc. Only applicable for acceptance events.
+          example: "Retail Point of Sale"
+        acceptanceTypeCategoryCode:
+          type: string
+          description: The shorthand code for the acceptance type category. Only applicable for acceptance events.
+          example: "2"
+        actionCode:
+          type: string
+          description: Action code for the event.
+        CODAmountDue:
+          type: string
+          description: Collect on delivery amount due. Only applicable for Arrival at Unit (07) or Available for Pickup (14) events.
+        eventCity:
+          type: string
+          description: The city where the event occurred.
+        eventCode:
+          type: string
+          description: Tracking event code. Refer to Domestic Scan Event list provided in USPS® Pub 199 Appendix G for all possible values.
+        eventCountry:
+          type: string
+          description: The country where the event occurred.
+        eventPartner:
+          type: string
+          description: The name of the partner associated to the event.
+        eventState:
+          type: string
+          description: The state where the event occurred.
+        eventTimestamp:
+          $ref: '#/components/schemas/EventTimestamp'
+        eventType:
+          type: string
+          description: The description of the event (e.g. Delivery).
+        eventZIPCode:
+          pattern: "^\\d{5}$"
+          type: string
+          description: The ZIP Code™ of the event.
+          example: "12345"
+        firm:
+          maxLength: 50
+          minLength: 0
+          type: string
+          description: The company name if delivered to a company.
+        GMTTimestamp:
+          type: string
+          description: The date and time of the event in Greenwich Mean Time (GMT).
+          format: date-time
+          example: "2024-04-04T14:03:12.041Z"
+        GMTOffset:
+          type: string
+          description: The offset of the local time of the event from Greenwich Mean Time (GMT).
+          example: -7:00
+        reasonCode:
+          type: string
+          description: Reason code for the event.
+        recipientName:
+          type: string
+          description: The name of the person signing for delivery (if available).
+        veriPoint:
+          type: boolean
+          description: "Delivery scan location certified, if applicable."
+      additionalProperties: false
+      xml:
+        name: trackingEvent
+    ScanEventExtractTrackingEvent:
+      title: Scan Event Extract Tracking Event
+      type: object
+      properties:
+        barcodeInputMethod:
+          type: string
+          description: "Barcode Input Method."
+          example: "0"
+        containers:
+          type: array
+          maxItems: 3
+          description: "Container information."
+          items:
+            $ref: '#/components/schemas/Container'
+        eSOL:
+          type: boolean
+          description: "Indicates if the delivery signature is electronic."
+        scanEventExtractEventName:
+          type: string
+          description: "Name of tracking event corresponding to Event Code."
+          example: "DELIVERED FRONT DOOR/PORCH"
+      allOf:
+      - $ref: '#/components/schemas/TrackingEvent'
+      additionalProperties: false
+    Container:
+      title: Container Information
+      type: object
+      properties:
+        containerID:
+          type: string
+          description: "Barcode on container. This may be a valid IMpb, IM Container Barcode, IM Tray Barcode, or a Trailer Placard Barcode."
+          example: "222010127123456789912345"
+        containerType:
+          type: string
+          description: "Describes the type of container for Container ID."
+          example: "SK"
+      additionalProperties: false
+    PaginationMetadata:
+      title: Pagination Metadata
+      required:
+        - limit
+        - offset
+      type: object
+      properties:
+        totalCount:
+          type: integer
+          description: Total number of resources return in the API request.
+          example: 140
+        page:
+          type: integer
+          description: The current page number.
+          example: 3
+        totalPages:
+          type: integer
+          description: "Total number of pages, based on the user provided limit and [totalCount]"
+          example: 7
+        limit:
+          type: integer
+          description: "The number of resources returned per call, based on the user provided limit"
+          example: 20
+        offset:
+          type: integer
+          description: "The current offset, based on the user provided offset"
+          example: 40
+        links:
+          $ref: '#/components/schemas/Links'
+      additionalProperties: false
+    EventDate:
+      type: string
+      format: date
+      description: The date of the event.
+      example: 2024-04-04
+    EventDateTime:
+      type: string
+      format: date-time
+      description: The date and time of the event.
+      example: 2024-04-04T14:03:12-07:00  
+  parameters:
+    subscriptionId:
+      name: subscriptionId
+      in: path
+      description: The unique identifier of the subscription.
+      required: true
+      style: simple
+      explode: false
+      schema:
+        type: string
+    offsetParam:
+      name: offset
+      in: query
+      description: The number of items to skip before returning the results
+      schema:
+        minimum: 0
+        type: integer
+    limitParam:
+      name: limit
+      in: query
+      description: The number of items to return
+      schema:
+        maximum: 100
+        minimum: 1
+        type: integer
+        format: int32
+        default: 20
+    IfMatch:
+      name: If-Match
+      in: header
+      description: The value of the entity tag indicating the version of the resource to get or update. All DELETE and PUT operations require an ETag to be supplied as the If-Match parameter.  The ETag is returned in the GET operation and is good for one hour or until it is used in a DELETE or PUT operation.
+      required: true
+      schema:
+        type: string
+        example: 33a64df551425fcc55e4d42a148795d9f25f89d4
+  examples:
+    TrackingNotification:
+      summary: Tracking Subscription Event
+      value:
+        subscriptionId: "123456789"
+        subscriptionType: "TRACKING"
+        timestamp: '2024-12-27T19:05:42.747Z'
+        payload: |
+          {\"trackingNumber\":\"12345678\",\"associatedTrackingNumber\":\"12345678\",\"destinationCity\":\"DETROIT\",\"destinationCountry\":\"US\",\"destinationState\":\"MI\",\"destinationZIPCode\":\"12345\",\"kahalaIndicator\":true,\"mailClass\":\"Priority Mail<SUP>&reg;</SUP>\",\"mailClassCode\":\"PM\",\"mailingDate\":\"2025-02-07\",\"mailType\":\"DM\",\"originCity\":\"ORLANDO\",\"originCountry\":\"US\",\"originState\":\"FL\",\"originZIPCode\":\"67890\",\"services\":[\"USPS Tracking<SUP>&#174;</SUP>\"],\"serviceTypeCode\":\"055\",\"status\":\"Delivered, Front Door/Porch\",\"statusCategory\":\"Accepted\",\"statusSummary\":\"Your item was delivered at the front door or porch at 12:55 pm on February 7, 2025 in DETROIT, MI 12345\",\"uniqueTrackingID\":\"12345678\",\"deliveryDateExpectation\":{\"endOfDay\":\"string\",\"expectedDeliveryDate\":\"2025-02-07\",\"guaranteedDeliveryDate\":\"string\",\"guaranteedDetails\":\"string\",\"predictedDeliveryDate\":\"2025-02-07\",\"predictedDeliverySource\":\"string\",\"predictedDeliveryWindowStartTime\":\"12:15pm\",\"predictedDeliveryWindowEndTime\":\"3:15pm\"},\"servicesEligibility\":{\"proofOfDeliveryEnabled\":true,\"RREEnabled\":true,\"trackingProofOfDeliveryEnabled\":true},\"trackingEvents\":[{\"acceptanceTypeCategory\":\"Retail Point of Sale\",\"acceptanceTypeCategoryCode\":\"2\",\"actionCode\":\"A\",\"CODAmountDue\":\"50.99\",\"eventCity\":\"DETROIT\",\"eventCode\":\"01\",\"eventCountry\":\"US\",\"eventPartner\":\"SomePartner\",\"eventState\":\"MI\",\"eventTimestamp\":\"2025-02-07T12:55:12-05:00\",\"eventType\":\"Delivered, Front Door/Porch\",\"eventZIPCode\":\"12345\",\"firm\":\"SomeFirm\",\"GMTTimestamp\":\"2025-02-07T17:55:12Z\",\"GMTOffset\":\"-5:00\",\"reasonCode\":\"10\",\"recipientName\":\"John Doe\",\"veriPoint\":true}]}
+    ScanEventExtractTrackingNotification:
+      value:
+        subscriptionId: "123456789"
+        subscriptionType: "TRACKING"
+        timestamp: '2024-12-27T19:05:42.747Z'
+        payload: |
+          {\"trackingNumber\":\"12345678\",\"associatedTrackingNumber\":\"12345678\",\"destinationCity\":\"DETROIT\",\"destinationCountry\":\"US\",\"destinationState\":\"MI\",\"destinationZIPCode\":\"12345\",\"kahalaIndicator\":true,\"mailClass\":\"Priority Mail<SUP>&reg;</SUP>\",\"mailClassCode\":\"PM\",\"mailingDate\":\"2025-02-07\",\"mailType\":\"DM\",\"originCity\":\"ORLANDO\",\"originCountry\":\"US\",\"originState\":\"FL\",\"originZIPCode\":\"67890\",\"services\":[\"USPS Tracking<SUP>&#174;</SUP>\"],\"serviceTypeCode\":\"055\",\"status\":\"Delivered, Front Door/Porch\",\"statusCategory\":\"Accepted\",\"statusSummary\":\"Your item was delivered at the front door or porch at 12:55 pm on February 7, 2025 in DETROIT, MI 12345\",\"uniqueTrackingID\":\"12345678\",\"addressStandardizedCode\":\"01\",\"addressServiceParticipantCode\":\"12345678\",\"ancillaryServiceEndorsement\":\"J\",\"customerReferenceNumber\":[\"123ABC\"],\"deliveryAddress\":\"123 MAIN ST\",\"destinationZIPCodePlus4\":\"1857\",\"electronicFileNumber\":\"9275012345678912345678\",\"impbComplianceReportCode\":\"20\",\"logisticsManagerMailerID\":\"941233312\",\"mailerID\":\"912345678\",\"mailerName\":\"ABC Company\",\"mailOwnerMailerID\":\"941233312\",\"originalTrackingNumber\":\"12345678\",\"postalCode\":\"A0A9A0\",\"productWeight\":\"14.3\",\"startTheClockTimestamp\":\"2025-02-04T14:03:12-05:00\",\"deliveryDateExpectation\":{\"endOfDay\":\"by 5:00 pm\",\"expectedDeliveryDate\":\"2025-02-07\",\"guaranteedDeliveryDate\":\"2025-02-07\",\"guaranteedDetails\":\"MoneyBack Guarantee\",\"predictedDeliveryDate\":\"2025-02-07\",\"predictedDeliverySource\":\"TRP\",\"predictedDeliveryWindowStartTime\":\"12:15pm\",\"predictedDeliveryWindowEndTime\":\"3:15pm\",\"deliveryDateModifiedIndicator\":\"1\"},\"servicesEligibility\":{\"proofOfDeliveryEnabled\":true,\"RREEnabled\":true,\"trackingProofOfDeliveryEnabled\":true},\"trackingEvents\":[{\"acceptanceTypeCategory\":\"Retail Point of Sale\",\"acceptanceTypeCategoryCode\":\"2\",\"actionCode\":\"A\",\"CODAmountDue\":\"50.99\",\"eventCity\":\"DETROIT\",\"eventCode\":\"01\",\"eventCountry\":\"US\",\"eventPartner\":\"SomePartner\",\"eventState\":\"MI\",\"eventTimestamp\":\"2025-02-07T12:55:12-05:00\",\"eventType\":\"Delivered, Front Door/Porch\",\"eventZIPCode\":\"12345\",\"firm\":\"SomeFirm\",\"GMTTimestamp\":\"2025-02-07T17:55:12Z\",\"GMTOffset\":\"-5:00\",\"reasonCode\":\"10\",\"recipientName\":\"John Doe\",\"veriPoint\":true}]}
+    Subscription:
+      summary: Subscription event creation request to enroll MID in all tracking events.
+      value:
+        listenerURL: https://myserver.com/listener
+        secret: MySecretKeyPhraseIs32BytesLength
+        adminNotification:
+          - email: user@example.com
+        filterProperties:
+          MID: "123456"
+          trackingEventTypes:
+            - ALL_UPDATES
+    Subscription-2:
+      summary: Subscription event creation request to enroll a tracking number in all tracking events.
+      value:
+        listenerURL: https://myserver.com/listener
+        secret: MySecretKeyPhraseIs32BytesLength
+        adminNotification:
+          - email: user@example.com
+        filterProperties:
+          trackingNumber: "9400112345678945613221"
+          trackingEventTypes:
+            - ALL_UPDATES
+  headers:
+    WWWAuthenticate:
+      description: Hint to the client application which security scheme to authorize a resource request.
+      required: false
+      schema:
+        type: string
+        example: "WWW-Authenticate: Bearer realm=\"https://api.usps.com\""
+    RetryAfter:
+      description: Indicate to the client application a time after which they can retry a resource request.
+      required: false
+      schema:
+        type: string
+        example: "Retry-After: 30"
+    ETag:
+      description: Entity Tag response header indicating version of resource. All DELETE and PUT operations require an ETag.  The ETag is returned in the GET operation and is good for one hour or until it is used in a DELETE or PUT operation.
+      schema:
+        type: string
+        example: "ETag: \"33a64df551425fcc55e4d42a148795d9f25f89d4\""
+  securitySchemes:
+    OAuth:
+      type: oauth2
+      description: The specified APIs accept an access token formatted as a JSON Web Token. The relative path to the OAuth2 version 3 API which supplies this access token is provided below for reference.
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth2/v3/token
+          scopes:
+            subscriptions-tracking: "Read, and write access to resources."
+        authorizationCode:
+          authorizationUrl: /oauth2/v3/authorize
+          tokenUrl: /oauth2/v3/token
+          scopes:
+            subscriptions-tracking: "Read, and write access to resources."

@@ -103,7 +103,7 @@ env vars in this table.
 
 | Env var | Where it comes from |
 |---|---|
-| `USPS_WEBHOOK_SECRET` | **You generate this yourself**, same as UPS — enter it when creating the Subscriptions-Tracking webhook subscription in USPS's portal. |
+| `USPS_WEBHOOK_SECRET` | **You generate this yourself**, same as UPS — but USPS requires it to be **exactly 32 characters**, no more, no less (confirmed in `docs/subscriptions-tracking-v3r2_6.yaml`). Set it in the server env, then trigger `POST /api/setup/register-usps-webhook` (not a portal UI step — subscriptions are created via the Subscriptions-Tracking API, which `registerUspsWebhook` in `setupController.js` calls on your behalf) with your listener URL. |
 
 ### Redirect-only alternative — considered, not chosen
 

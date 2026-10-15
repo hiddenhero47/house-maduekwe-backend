@@ -397,11 +397,11 @@ const processUspsShipmentEvent = async (req, res) => {
   try {
     const { event } = req.webhook;
 
-    // USPS's Subscriptions-Tracking webhook envelope shape is unconfirmed
-    // against live traffic (no credentials yet — see
-    // docs/shipping-provider-integration-plan.md). Best-effort extraction;
-    // adjust once a real payload is seen.
-    const trackingNumber = event?.trackingNumber || event?.TrackingNumber;
+    // `event` is already the parsed inner `payload` (verifyShipmentWebhook
+    // unwraps the Subscriptions-Tracking 3.2 envelope and JSON.parses it),
+    // so this is the TrackingPayload/ScanEventExtractTrackingPayload shape
+    // directly — field is camelCase `trackingNumber` per the spec.
+    const trackingNumber = event?.trackingNumber;
 
     if (!trackingNumber) return;
 
