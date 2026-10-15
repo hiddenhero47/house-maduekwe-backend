@@ -121,16 +121,21 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
 
   const client = await getUspsClient();
 
+  // `correlationId` isn't in the downloaded OpenAPI spec at all, and USPS's
+  // live validator keeps echoing it back empty even when it's sent as a
+  // body field with that exact name — while every other field (even ones
+  // renamed internally, like MID -> mailerId) binds correctly. That pattern
+  // points to it being a gateway-level tracing header rather than an
+  // application body field, so it's sent both ways here.
+  const correlationId = crypto.randomUUID();
+
   try {
     const { data } = await client.post(
       "/subscriptions-tracking/v3r2/subscriptions",
       {
         listenerURL,
         secret,
-        // Not in the downloaded OpenAPI spec at all, but USPS's live
-        // validator rejects a request without it ("Subscriptions must have
-        // a correlationId field") — a unique id per subscription request.
-        correlationId: crypto.randomUUID(),
+        correlationId,
         adminNotification: [
           {
             email: "support.housemaduekwe@gmail.com",
@@ -140,6 +145,9 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
           MID: USPS_MAILER_ID,
           trackingEventTypes: ["ALL_UPDATES"],
         },
+      },
+      {
+        headers: { "X-Correlation-Id": correlationId },
       },
     );
 
