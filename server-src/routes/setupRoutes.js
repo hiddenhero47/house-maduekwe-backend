@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 const {
   runSetupScripts,
-  clearCart,
   clearOrdersPaymentsAndShipments,
-  normalizeAddresses,
   registerUspsWebhook,
 } = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
@@ -16,18 +14,6 @@ router.post(
   "/get-started",
   timeWindowGuard("2026-04-05T00:00:00Z", 24),
   runSetupScripts,
-);
-
-router.post(
-  "/clear-cart",
-  timeWindowGuard("2026-05-08T00:00:00Z", 24),
-  clearCart,
-);
-
-router.post(
-  "/normalize-addresses",
-  timeWindowGuard("2026-09-04T00:00:00Z", 24),
-  normalizeAddresses,
 );
 
 router.delete(

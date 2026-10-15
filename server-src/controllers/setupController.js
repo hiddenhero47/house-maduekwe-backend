@@ -4,13 +4,11 @@ const {
   ensureUSExportFee,
   ensureShippingSettings,
 } = require("../helpers/appSetup");
-const Cart = require("../models/cartModel");
 const asyncHandler = require("express-async-handler");
 const { User } = require("../models/userModel");
 const crypto = require("crypto");
 const { Payment, PAYMENT_STATUS } = require("../models/paymentModel");
 const { Order, ORDER_STATUS } = require("../models/orderModel");
-const { Address } = require("../models/addressModel");
 const { Shipment } = require("../models/shipmentModel");
 const { deleteShipmentFiles } = require("../helpers/privateFileManager");
 const { getUspsClient, USPS_MAILER_ID } = require("../config/usps");
@@ -34,56 +32,6 @@ const runSetupScripts = async (req, res) => {
     results: logs,
   });
 };
-
-// @desc    Clear carts
-// @route   DELETE /api/setup/clear-cart
-// @access  Private/Admin
-const clearCart = asyncHandler(async (req, res) => {
-  const { userIds } = req.body;
-
-  // If userIds are passed → clear only those users
-  if (Array.isArray(userIds) && userIds.length > 0) {
-    await Cart.updateMany(
-      { user: { $in: userIds } },
-      { $set: { itemList: [] } },
-    );
-
-    return res.json({
-      message: "Selected users carts cleared",
-    });
-  }
-
-  // If no userIds passed → clear all carts
-  await Cart.updateMany({}, { $set: { itemList: [] } });
-
-  res.json({
-    message: "All carts cleared",
-  });
-});
-
-const normalizeAddresses = asyncHandler(async (req, res) => {
-  const result = await Address.updateMany(
-    {
-      stateLine: { $exists: true },
-    },
-    [
-      {
-        $set: {
-          addressLine2: "$stateLine",
-        },
-      },
-      {
-        $unset: "stateLine",
-      },
-    ],
-  );
-
-  res.json({
-    success: true,
-    message: "Addresses migrated successfully",
-    updated: result.modifiedCount,
-  });
-});
 
 // @desc    Clear orders, payments, and shipments — also removes the private
 //          label files on disk for any shipment that has one, so nothing
@@ -191,8 +139,6 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
 
 module.exports = {
   runSetupScripts,
-  clearCart,
   clearOrdersPaymentsAndShipments,
-  normalizeAddresses,
   registerUspsWebhook,
 };
