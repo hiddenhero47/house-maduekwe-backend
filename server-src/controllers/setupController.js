@@ -162,6 +162,10 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
       requestBody,
       {
         headers: { "X-Correlation-Id": correlationId },
+        // Body field and header both come back empty on USPS's side — try
+        // a query param too, belt-and-suspenders, before concluding this
+        // needs USPS API Support (see docs/shipping-provider-integration-plan.md).
+        params: { correlationId },
       },
     );
 
