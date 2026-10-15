@@ -129,23 +129,37 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
   // application body field, so it's sent both ways here.
   const correlationId = crypto.randomUUID();
 
+  // Sanity-check what we actually generated before blaming USPS further —
+  // if this ever isn't a real 36-char UUID string, that's the bug, not
+  // their side.
+  if (typeof correlationId !== "string" || correlationId.length !== 36) {
+    res.status(500);
+    throw new Error(
+      `correlationId generation produced something unexpected: ${JSON.stringify(
+        correlationId,
+      )} (type: ${typeof correlationId})`,
+    );
+  }
+
+  const requestBody = {
+    listenerURL,
+    secret,
+    correlationId,
+    adminNotification: [
+      {
+        email: "support.housemaduekwe@gmail.com",
+      },
+    ],
+    filterProperties: {
+      MID: USPS_MAILER_ID,
+      trackingEventTypes: ["ALL_UPDATES"],
+    },
+  };
+
   try {
     const { data } = await client.post(
       "/subscriptions-tracking/v3r2/subscriptions",
-      {
-        listenerURL,
-        secret,
-        correlationId,
-        adminNotification: [
-          {
-            email: "support.housemaduekwe@gmail.com",
-          },
-        ],
-        filterProperties: {
-          MID: USPS_MAILER_ID,
-          trackingEventTypes: ["ALL_UPDATES"],
-        },
-      },
+      requestBody,
       {
         headers: { "X-Correlation-Id": correlationId },
       },
@@ -161,7 +175,20 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
       "USPS rejected the subscription request — see data for the raw response.",
     );
     error.statusCode = err.response?.status || 502;
-    error.data = err.response?.data || err.message;
+    // Echo back exactly what we generated/sent, alongside USPS's response,
+    // so a failure is diagnosable from the API response alone — no server
+    // log access needed to see whether our correlationId was ever good.
+    error.data = {
+      uspsResponse: err.response?.data || err.message,
+      whatWeSent: {
+        correlationId,
+        correlationIdType: typeof correlationId,
+        correlationIdLength: correlationId.length,
+        sentInBodyAs: "correlationId",
+        sentInHeaderAs: "X-Correlation-Id",
+        fullRequestBody: requestBody,
+      },
+    };
     throw error;
   }
 });
