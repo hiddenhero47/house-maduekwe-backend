@@ -151,10 +151,18 @@ describe("POST /api/shipments/usps/webhook", () => {
     throw new Error("waitFor: condition never became true within the timeout");
   };
 
-  const sign = (timestamp, bodyString) =>
+  // Real envelope shape per docs/subscriptions-tracking-v3r2_6.yaml:
+  // { subscriptionId, subscriptionType, timestamp, payload } where `payload`
+  // is itself a JSON-formatted string, and the HMAC signs `timestamp + payload`.
+  const buildEnvelope = (payloadObj, timestamp = new Date().toISOString()) => {
+    const payload = JSON.stringify(payloadObj);
+    return { envelope: { subscriptionId: "123456789", subscriptionType: "TRACKING", timestamp, payload }, timestamp, payload };
+  };
+
+  const sign = (timestamp, payload) =>
     crypto
       .createHmac("sha256", process.env.USPS_WEBHOOK_SECRET)
-      .update(timestamp + bodyString)
+      .update(timestamp + payload)
       .digest("base64");
 
   it("re-queries USPS directly and updates the shipment status", async () => {
@@ -172,15 +180,15 @@ describe("POST /api/shipments/usps/webhook", () => {
       raw: {},
     });
 
-    const bodyString = JSON.stringify({ trackingNumber: "9400100000000000000000" });
-    const timestamp = String(Date.now());
+    const { envelope, timestamp, payload } = buildEnvelope({
+      trackingNumber: "9400100000000000000000",
+    });
 
     const res = await request(app)
       .post("/api/shipments/usps/webhook")
       .set("Content-Type", "application/json")
-      .set("x-timestamp", timestamp)
-      .set("x-hmac", sign(timestamp, bodyString))
-      .send(bodyString);
+      .set("x-hmac", sign(timestamp, payload))
+      .send(JSON.stringify(envelope));
 
     expect(res.status).toBe(200);
 
@@ -198,27 +206,24 @@ describe("POST /api/shipments/usps/webhook", () => {
   });
 
   it("rejects a bad signature", async () => {
-    const bodyString = JSON.stringify({ trackingNumber: "9400100000000000000000" });
-    const timestamp = String(Date.now());
+    const { envelope } = buildEnvelope({ trackingNumber: "9400100000000000000000" });
 
     const res = await request(app)
       .post("/api/shipments/usps/webhook")
       .set("Content-Type", "application/json")
-      .set("x-timestamp", timestamp)
       .set("x-hmac", "not-a-real-signature")
-      .send(bodyString);
+      .send(JSON.stringify(envelope));
 
     expect(res.status).toBe(401);
   });
 
-  it("rejects a missing timestamp header", async () => {
-    const bodyString = JSON.stringify({ trackingNumber: "9400100000000000000000" });
+  it("rejects a missing X-HMAC header", async () => {
+    const { envelope } = buildEnvelope({ trackingNumber: "9400100000000000000000" });
 
     const res = await request(app)
       .post("/api/shipments/usps/webhook")
       .set("Content-Type", "application/json")
-      .set("x-hmac", sign("whatever", bodyString))
-      .send(bodyString);
+      .send(JSON.stringify(envelope));
 
     expect(res.status).toBe(400);
   });

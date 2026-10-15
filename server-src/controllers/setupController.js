@@ -97,12 +97,10 @@ const clearOrdersPaymentsAndShipments = asyncHandler(async (req, res) => {
 // @route   POST /api/setup/register-usps-webhook
 // @access  Private/Admin (time-window guarded, see setupRoutes)
 //
-// ⚠️ The exact endpoint path and filterProperties field name below are
-// BEST-EFFORT — USPS's authoritative schema for this specific API lives
-// behind the USPS Developer Portal login (see
-// docs/shipping-provider-integration-plan.md). If this 404s, check your
-// portal's "Subscriptions - Tracking" reference for the real path; if it
-// 400s, the `data` field in the error response should name the bad field.
+// Matches USPS's "Subscriptions - Tracking 3.2" spec
+// (docs/subscriptions-tracking-v3r2_6.yaml): POST {base}/subscriptions-
+// tracking/v3r2/subscriptions, with `secret` required to be exactly 32
+// characters and `adminNotification` a required array of {email}.
 const registerUspsWebhook = asyncHandler(async (req, res) => {
   const { listenerURL } = req.body;
 
@@ -111,16 +109,35 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
     throw new Error("A valid https:// listenerURL is required");
   }
 
+  const secret = process.env.USPS_WEBHOOK_SECRET;
+  if (!secret || secret.length !== 32) {
+    res.status(400);
+    throw new Error(
+      `USPS_WEBHOOK_SECRET must be exactly 32 characters (currently ${
+        secret ? secret.length : 0
+      }) — USPS rejects any other length.`,
+    );
+  }
+
   const client = await getUspsClient();
 
   try {
-    const { data } = await client.post("/subscriptions/v3/subscription", {
-      listenerURL,
-      filterProperties: {
-        mailerId: USPS_MAILER_ID,
+    const { data } = await client.post(
+      "/subscriptions-tracking/v3r2/subscriptions",
+      {
+        listenerURL,
+        secret,
+        adminNotification: [
+          {
+            email: "support.housemaduekwe@gmail.com",
+          },
+        ],
+        filterProperties: {
+          MID: USPS_MAILER_ID,
+          trackingEventTypes: ["ALL_UPDATES"],
+        },
       },
-      secret: process.env.USPS_WEBHOOK_SECRET,
-    });
+    );
 
     res.json({
       success: true,

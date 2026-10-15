@@ -186,11 +186,22 @@ Real differences from UPS, not just copy-paste:
   any non-US origin or destination — a genuine "can't serve" case for the
   fallback chain, not a formality like it mostly is for `internalProvider`.
 - **USPS's webhook signature scheme is different in shape**, not just
-  header name: it signs `timestamp + payload` together (UPS signs the raw
-  body alone), digest in an `X-HMAC` header alongside an `X-Timestamp`
-  header. Both header names are best-effort — USPS's Subscriptions-Tracking
-  docs describe the scheme but I don't have a live payload to confirm exact
-  header casing/names against.
+  header name: confirmed against the real "Subscriptions - Tracking 3.2"
+  spec (`docs/subscriptions-tracking-v3r2_6.yaml`). It signs
+  `timestamp + payload` together (UPS signs the raw body alone), digest in
+  an `X-HMAC` header — there is no separate timestamp header; `timestamp`
+  and `payload` are fields *inside* the delivered JSON envelope
+  (`{ subscriptionId, subscriptionType, timestamp, payload }`), and
+  `payload` is itself a JSON-formatted string requiring a second
+  `JSON.parse` to reach the actual tracking fields.
+  `registerUspsWebhook` (`setupController.js`) posts to
+  `POST {USPS_API_BASE_URL}/subscriptions-tracking/v3r2/subscriptions`
+  (not a `/subscriptions/v3/...` path — this was guessed wrong initially
+  and confirmed 404 against live USPS before the spec was found), with a
+  required `secret` (must be **exactly 32 characters** — USPS rejects any
+  other length), a required `adminNotification` array of `{email}`, and
+  `filterProperties: { MID, trackingEventTypes }` (filtering by MID, not
+  `mailerId` as originally guessed).
 - **No confirmed Label Recovery equivalent.** `uspsProvider` doesn't export
   `recoverLabel` at all — `shipmentController.getShipmentLabel`'s recovery
   fallback is now generic (`typeof provider.recoverLabel === "function"`)
@@ -223,11 +234,13 @@ metadata, not hardcoded to `"ups"`, so USPS showed up in both automatically.
 
 ## What's still open
 
-- Neither UPS nor USPS has live credentials — everything is proven correct
-  against mocked HTTP, not a real sandbox call. First real task once
-  credentials exist for either: confirm the exact field names/webhook
-  header names noted as "best-effort" throughout both provider files
-  (that now includes the Payments API request/response shape too).
+- Neither UPS nor USPS has live credentials for the shipping/label APIs —
+  everything there is proven correct against mocked HTTP, not a real
+  sandbox call. First real task once credentials exist for either: confirm
+  the exact field names/request shapes noted as "best-effort" throughout
+  both provider files (that includes the Payments API request/response
+  shape). The Subscriptions-Tracking webhook scheme itself is no longer a
+  guess — confirmed against the real spec, see above.
 - Label format defaulted to PDF for both, per the earlier open question —
   never revisited since it turned out non-blocking.
 - No automated retry for a failed `createShipment` (e.g. USPS declining for
