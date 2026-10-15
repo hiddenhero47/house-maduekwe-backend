@@ -100,15 +100,6 @@ const createShipmentForOrderCore = async ({ order, manualDetails, actor }) => {
     ...(actor ? { createdBy: actor } : {}),
   });
 
-  // Keep Shopify's order id around for later getShipment polling.
-  if (result.shopifyOrderId) {
-    order.extraInfo = {
-      ...(order.extraInfo || {}),
-      shopifyOrderId: result.shopifyOrderId,
-    };
-    await order.save();
-  }
-
   await applyShipmentStatusToOrder({ order, shipment });
 
   return { shipment, order };
@@ -289,7 +280,7 @@ const getShipmentLabel = asyncHandler(async (req, res) => {
 
   // Best-effort fallback only — we store the label ourselves at creation
   // time, this is just for the rare case that copy is missing. See
-  // docs/shopify-ups-integration-plan.md ("Recovery vs. storage"). Only
+  // docs/shipping-provider-integration-plan.md ("Recovery vs. storage"). Only
   // attempted for providers that actually export recoverLabel — USPS
   // doesn't have a confirmed equivalent to UPS's Label Recovery endpoint.
   const recoveryProvider =
@@ -340,75 +331,20 @@ const getShipmentLabel = asyncHandler(async (req, res) => {
   res.send(buffer);
 });
 
-// @desc Shopify fulfillment webhook — signature already verified upstream
-// by middleware/shipmentWebhookMiddleware.js
-// @route POST /api/shipments/shopify/webhook
-// @access Public (signature-verified)
-const processShopifyShipmentEvent = async (req, res) => {
-  // ✅ Acknowledge immediately — same philosophy as the Stripe webhook in
-  // paymentController.js. Shopify will retry on non-2xx / timeout.
-  res.sendStatus(200);
-
-  try {
-    const { event, topic } = req.webhook;
-
-    if (!topic || !topic.startsWith("fulfillments/")) return;
-
-    const fulfillmentId = String(event.id);
-    const shopifyOrderId = String(event.order_id);
-
-    const shipment = await Shipment.findOne({
-      provider: "shopify",
-      providerShipmentId: fulfillmentId,
-    });
-
-    if (!shipment) return; // not one of ours (or not created via this flow)
-
-    // 🔁 ALWAYS re-query Shopify directly — never trust the webhook payload
-    // alone, same rule as the Stripe webhook.
-    const provider = getShippingProvider("shopify");
-
-    const fresh = await provider.getShipment({
-      providerShipmentId: fulfillmentId,
-      shopifyOrderId,
-    });
-
-    shipment.status = fresh.status;
-    shipment.trackingNumber = fresh.trackingNumber || shipment.trackingNumber;
-    shipment.trackingUrl = fresh.trackingUrl || shipment.trackingUrl;
-    shipment.raw = fresh.raw;
-
-    if (fresh.status === SHIPMENT_STATUS.DELIVERED) {
-      shipment.deliveredAt = new Date();
-    }
-
-    await shipment.save();
-
-    const order = await Order.findById(shipment.order);
-    if (!order) return;
-
-    await applyShipmentStatusToOrder({ order, shipment });
-  } catch (err) {
-    // Already acknowledged the webhook — just log, don't let Shopify retry
-    // forever on an error that re-querying won't fix.
-    console.error("[SHOPIFY_SHIPMENT_WEBHOOK] Failed to process:", err);
-  }
-};
-
 // @desc UPS tracking webhook — signature already verified upstream by
 // middleware/shipmentWebhookMiddleware.js
 // @route POST /api/shipments/ups/webhook
 // @access Public (signature-verified)
 const processUpsShipmentEvent = async (req, res) => {
-  // ✅ Acknowledge immediately — same philosophy as the Stripe/Shopify
-  // webhooks. UPS will retry on non-2xx / timeout.
+  // ✅ Acknowledge immediately — same philosophy as the Stripe webhook.
+  // UPS will retry on non-2xx / timeout.
   res.sendStatus(200);
 
   try {
     const { event } = req.webhook;
 
     // UPS's tracking webhook envelope shape is unconfirmed against live
-    // traffic (no credentials yet — see docs/shopify-ups-integration-plan.md).
+    // traffic (no credentials yet — see docs/shipping-provider-integration-plan.md).
     // Best-effort extraction; adjust once a real payload is seen.
     const trackingNumber = event?.trackingNumber || event?.TrackingNumber;
 
@@ -422,7 +358,7 @@ const processUpsShipmentEvent = async (req, res) => {
     if (!shipment) return; // not one of ours
 
     // 🔁 ALWAYS re-query UPS directly — never trust the webhook payload
-    // alone, same rule as the Stripe/Shopify webhooks.
+    // alone, same rule as the Stripe webhook.
     const provider = getShippingProvider("ups");
 
     const fresh = await provider.getShipment({
@@ -463,8 +399,8 @@ const processUspsShipmentEvent = async (req, res) => {
 
     // USPS's Subscriptions-Tracking webhook envelope shape is unconfirmed
     // against live traffic (no credentials yet — see
-    // docs/shopify-ups-integration-plan.md). Best-effort extraction; adjust
-    // once a real payload is seen.
+    // docs/shipping-provider-integration-plan.md). Best-effort extraction;
+    // adjust once a real payload is seen.
     const trackingNumber = event?.trackingNumber || event?.TrackingNumber;
 
     if (!trackingNumber) return;
@@ -512,7 +448,6 @@ module.exports = {
   getShipmentForOrder,
   getAllShipments,
   getShipmentLabel,
-  processShopifyShipmentEvent,
   processUpsShipmentEvent,
   processUspsShipmentEvent,
 };

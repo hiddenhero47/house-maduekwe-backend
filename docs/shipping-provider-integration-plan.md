@@ -1,4 +1,4 @@
-# Shipping Integration Plan — Internal + UPS + USPS (Shopify demoted, see below)
+# Shipping Integration Plan — Internal + UPS + USPS
 
 Status: **UPS and USPS both fully implemented, including USPS's Payments
 API step, tested against mocked HTTP (287 backend tests passing). Neither
@@ -6,41 +6,8 @@ has live credentials yet — the only remaining work is registration (see
 `docs/shipping-provider-credentials-checklist.md`) and confirming
 best-effort field names against a real sandbox once that's done.**
 
-Scope note: this started as "Shopify + UPS." After checking what Shopify's API surface
-actually allows (Section 0), Shopify came out of the shipping-provider chain entirely —
-it can't quote a price or self-serve fulfillment here, full stop. Its sync system got
-repurposed into a separate, **deliberately deferred** plan for Shopify as a sales
-channel: `docs/shopify-sales-channel-plan.md`. This doc is now just the real shipping
-work: **internal** (existing) + **UPS** (new), plus the shipping-label storage design you
-asked about.
-
----
-
-## 0. Why Shopify dropped out — recap with the new evidence
-
-Two things confirm this, not just the original "no generic rate API" finding:
-
-1. **The exact package/method you found (`shopify-api-node`'s `checkout.shippingRates`)
-   is already dead.** It wraps the REST Admin API's `checkouts.json` resource — Shopify
-   shut down the entire Checkout API (REST Admin *and* Storefront) on **April 1, 2025**,
-   over a year before today. That specific call can no longer be made — not "we chose
-   not to," it's gone.
-   [Checkout APIs shut down April 1, 2025](https://shopify.dev/changelog/checkout-apis-will-be-shut-down-april-1-2025)
-2. **Even before that shutdown, the answer would've been "maybe, and gated."** Real-time
-   carrier rates through Shopify ("carrier-calculated shipping") require a qualifying
-   plan (Advanced/Plus included; Grow needs an add-on fee; Basic doesn't have it) and,
-   more fundamentally, run through the **CarrierService API** — which is *Shopify's own
-   checkout* calling *our* server for a rate, not us calling Shopify. There's no
-   direction in which an external system asks Shopify for a price and gets a real
-   carrier answer back.
-   [Third-party carrier-calculated shipping](https://help.shopify.com/en/manual/fulfillment/setup/shipping-rates/third-party-carrier-calculated-shipping)
-
-**Decision:** Shopify is out of `providers/shippingProviders/` entirely — no `getQuote`,
-no `createShipment` pretending it's a shipper. The real shipping providers for this
-project are `internal` (ExportFee, already built) and `ups` (this doc). Sync + Shopify
-order-mirroring becomes its own initiative, parked per your note that you need to talk
-to your client about why he still wants Shopify given it can't solve the shipping
-problem — see the deferred doc.
+The real shipping providers for this project are `internal` (ExportFee,
+already built), `ups`, and `usps`.
 
 ---
 
@@ -70,7 +37,7 @@ provider actually answered, same as today.
 ## 2. UPS provider
 
 - `server-src/config/ups.js` — OAuth2 client-credentials token fetch, in-memory cache
-  keyed on expiry (new pattern here — Stripe/Shopify both use static long-lived tokens,
+  keyed on expiry (new pattern here — Stripe uses a static long-lived token,
   UPS's are short-lived and need refresh).
 - `server-src/providers/shippingProviders/upsProvider.js`:
   - `getQuote` — Rating API. A genuine destination-aware quote, the real second opinion
@@ -82,8 +49,8 @@ provider actually answered, same as today.
   - `getShipment` — Tracking API poll, re-queries UPS directly rather than trusting a
     webhook payload alone, same rule as everywhere else.
 - `shipmentWebhookMiddleware.js` gets a `ups` branch — same HMAC-SHA256-over-raw-body
-  shape already used for Stripe/Shopify, UPS's own header name.
-- `shipmentController.js` gets a `processUpsShipmentEvent` twin to the Shopify handler.
+  shape already used for Stripe, UPS's own header name.
+- `shipmentController.js` gets a `processUpsShipmentEvent` webhook handler.
 - Route: `POST /api/shipments/ups/webhook`.
 - No product sync for UPS — confirmed unnecessary, it only ever needs package
   weight/dimensions + destination, both already on the Order.
@@ -219,8 +186,8 @@ Real differences from UPS, not just copy-paste:
   any non-US origin or destination — a genuine "can't serve" case for the
   fallback chain, not a formality like it mostly is for `internalProvider`.
 - **USPS's webhook signature scheme is different in shape**, not just
-  header name: it signs `timestamp + payload` together (UPS/Shopify sign
-  the raw body alone), digest in an `X-HMAC` header alongside an `X-Timestamp`
+  header name: it signs `timestamp + payload` together (UPS signs the raw
+  body alone), digest in an `X-HMAC` header alongside an `X-Timestamp`
   header. Both header names are best-effort — USPS's Subscriptions-Tracking
   docs describe the scheme but I don't have a live payload to confirm exact
   header casing/names against.
@@ -271,20 +238,13 @@ metadata, not hardcoded to `"ups"`, so USPS showed up in both automatically.
   gives visibility into anything sitting unshipped — a cron job was
   considered and explicitly decided against for now.
 
-## Open questions
+## Resolved decisions, for the record
 
-1. ~~Confirm store-it-ourselves-with-UPS-as-fallback~~ → **confirmed**, storage design
-   above reflects it.
-2. **Label format** — still open. UPS supports GIF (smallest, what thermal label
-   printers expect), PDF (nicer for a standard office printer), or ZPL (raw
-   thermal-printer language). Do you already have (or plan to get) a thermal label
-   printer, or is this printing on a normal office printer? That decides the default —
-   I'd lean PDF unless you're getting a label printer. Not fully blocking though: the
-   per-shipment folder design means this is a cheap default to change later, or even to
-   request multiple formats per shipment up front — doesn't need to be settled before
-   Phase 1 starts.
-
-Given question 2 no longer blocks anything, Phase 1 for this doc is ready to start: the
-whole UPS piece together — provider (quote/ship/track/webhook) + label storage/
-controller/frontend — since they're one cohesive unit now that Shopify is out of the
-shipping chain. Defaulting to PDF unless you say otherwise before I get to that part.
+- **Storage**: label stored ourselves at creation time, provider-side recovery
+  (where a provider supports it) as a best-effort fallback only.
+- **Label format**: defaulted to PDF for both carriers — never came back up as
+  blocking, since the per-shipment folder design makes it cheap to change or
+  extend later.
+- **USPS funding**: Trust Account, not ACH Debit — bounds a leaked credential's
+  exposure to whatever's preloaded rather than a linked bank account. See
+  `docs/shipping-provider-credentials-checklist.md`.

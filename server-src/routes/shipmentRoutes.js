@@ -5,7 +5,6 @@ const {
   getShipmentForOrder,
   getAllShipments,
   getShipmentLabel,
-  processShopifyShipmentEvent,
   processUpsShipmentEvent,
   processUspsShipmentEvent,
 } = require("../controllers/shipmentController");
@@ -27,12 +26,9 @@ router.patch("/orders/:id/status", adminOnly, updateShipmentStatus);
 // pattern as /api/payment/stripe/callback.
 //
 // :provider is required, not cosmetic — verifyShipmentWebhook reads
-// req.params.provider to know which signature scheme to verify. Two static
-// routes here would leave that always undefined (this was in fact the case
-// before — the shopify/webhook route always 400'd, just never caught since
-// nothing exercised it).
+// req.params.provider to know which signature scheme to verify. A static
+// route here would leave that always undefined.
 const webhookHandlers = {
-  shopify: processShopifyShipmentEvent,
   ups: processUpsShipmentEvent,
   usps: processUspsShipmentEvent,
 };

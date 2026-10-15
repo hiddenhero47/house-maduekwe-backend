@@ -10,8 +10,8 @@ const UPS_ACCOUNT_NUMBER = process.env.UPS_ACCOUNT_NUMBER;
 let cachedToken = null; // { accessToken, expiresAt }
 
 // OAuth2 client-credentials — the token is short-lived (UPS: ~1hr), unlike
-// Stripe/Shopify's static tokens, so this is fetched lazily and cached with
-// a safety margin rather than read once at require-time.
+// Stripe's static token, so this is fetched lazily and cached with a safety
+// margin rather than read once at require-time.
 const getUpsAccessToken = async () => {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.accessToken;

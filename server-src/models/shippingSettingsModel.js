@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 // Full roster this architecture is designed for — not all registered yet.
 const SHIPPING_PROVIDERS = {
   INTERNAL: "internal",
-  SHOPIFY: "shopify",
   UPS: "ups",
   USPS: "usps",
   DHL: "dhl",
@@ -11,8 +10,6 @@ const SHIPPING_PROVIDERS = {
 };
 
 // Only providers actually registered in providers/shippingProviders/index.js.
-// Shopify deliberately excluded — see docs/shopify-ups-integration-plan.md §0:
-// it has no external rate-quote API, so it can't function as a shipper here.
 const ENABLED_SHIPPING_PROVIDERS = [
   SHIPPING_PROVIDERS.INTERNAL,
   SHIPPING_PROVIDERS.UPS,

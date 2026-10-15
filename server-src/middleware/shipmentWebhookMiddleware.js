@@ -6,42 +6,8 @@ const verifyShipmentWebhook = (req, res, next) => {
   const { provider } = req.params;
 
   try {
-    if (provider === "shopify") {
-      const hmacHeader = req.headers["x-shopify-hmac-sha256"];
-
-      if (!hmacHeader || !Buffer.isBuffer(req.body)) {
-        return res.status(400).json({ message: "Missing Shopify HMAC header" });
-      }
-
-      const digest = crypto
-        .createHmac("sha256", process.env.SHOPIFY_WEBHOOK_SECRET)
-        .update(req.body)
-        .digest("base64");
-
-      const digestBuffer = Buffer.from(digest);
-      const headerBuffer = Buffer.from(hmacHeader);
-
-      const isValid =
-        digestBuffer.length === headerBuffer.length &&
-        crypto.timingSafeEqual(digestBuffer, headerBuffer);
-
-      if (!isValid) {
-        return res
-          .status(401)
-          .json({ message: "Invalid Shopify webhook signature" });
-      }
-
-      req.webhook = {
-        provider: "shopify",
-        topic: req.headers["x-shopify-topic"],
-        event: JSON.parse(req.body.toString("utf8")),
-      };
-
-      return next();
-    }
-
     if (provider === "ups") {
-      // Same HMAC-SHA256-over-raw-body shape as Stripe/Shopify above — UPS's
+      // Same HMAC-SHA256-over-raw-body shape as Stripe's webhook — UPS's
       // own header name for the digest.
       const signatureHeader = req.headers["x-ups-signature"];
 
@@ -77,7 +43,7 @@ const verifyShipmentWebhook = (req, res, next) => {
       // Different scheme from the others: USPS signs `${timestamp}${payload}`
       // (not the raw body alone) with the subscription secret, digest in
       // X-HMAC. Timestamp header name is best-effort — verify once a real
-      // USPS subscription payload is seen (see docs/shopify-ups-integration-plan.md).
+      // USPS subscription payload is seen (see docs/shipping-provider-integration-plan.md).
       const hmacHeader = req.headers["x-hmac"];
       const timestamp = req.headers["x-timestamp"];
 

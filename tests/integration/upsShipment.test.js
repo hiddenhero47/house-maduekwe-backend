@@ -209,7 +209,7 @@ describe("Delivered shipment cleans up its label file", () => {
 
 // processUpsShipmentEvent acknowledges the webhook (res.sendStatus(200))
 // before its background work (re-query UPS, save) finishes — same
-// fire-and-forget shape as the Stripe/Shopify webhook handlers. Supertest's
+// fire-and-forget shape as the Stripe webhook handler. Supertest's
 // request resolves as soon as that early response is sent, so asserting on
 // the DB state immediately after is a race. Poll briefly instead of
 // asserting the instant the HTTP response comes back.

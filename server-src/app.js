@@ -21,10 +21,6 @@ const createApp = () => {
     express.raw({ type: "application/json" }),
   );
   app.use(
-    "/api/shipments/shopify/webhook",
-    express.raw({ type: "application/json" }),
-  );
-  app.use(
     "/api/shipments/ups/webhook",
     express.raw({ type: "application/json" }),
   );

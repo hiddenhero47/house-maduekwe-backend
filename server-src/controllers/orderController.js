@@ -237,7 +237,7 @@ const getOrderByIdAll = asyncHandler(async (req, res) => {
 // 🛑 Disabled for now — shipped/delivered transitions are now driven by the
 // Shipment model instead (see helpers/shipmentHelper.js's
 // applyShipmentStatusToOrder, called from shipmentController.js's manual
-// "create shipment" action and the Shopify webhook handler). This also
+// "create shipment" action and the carrier webhook handlers). This also
 // covered pending->processing / processing<->paid / processing->cancelled,
 // which currently have no replacement — re-enable (or rebuild a narrower
 // version) if that manual control is needed again. Route is commented out

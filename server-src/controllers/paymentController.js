@@ -207,11 +207,10 @@ const processStripeEvent = async (req, res) => {
   );
 
   // 🚚 Auto-create a shipment when the provider that quoted this order
-  // self-serves real tracking (provider.supportsAutoTracking — UPS, not
-  // internal, and Shopify isn't in the shipping-provider registry at all —
-  // see docs/shopify-ups-integration-plan.md) and the admin has the
-  // auto-create toggle on. Never lets a shipment-creation failure block the
-  // payment webhook — it's already been acknowledged above.
+  // self-serves real tracking (provider.supportsAutoTracking — UPS/USPS,
+  // not internal — see docs/shipping-provider-integration-plan.md) and the
+  // admin has the auto-create toggle on. Never lets a shipment-creation
+  // failure block the payment webhook — it's already been acknowledged above.
   try {
     const settings = await getShippingSettings();
 

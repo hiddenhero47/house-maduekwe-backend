@@ -1,8 +1,8 @@
 # Shipping Provider Credentials & Setup Checklist
 
 This is the "what do we actually need to go get" doc — separate from
-`docs/shopify-ups-integration-plan.md` (the technical design). Use this to
-know exactly what accounts/keys to request before either provider can be
+`docs/shipping-provider-integration-plan.md` (the technical design). Use this
+to know exactly what accounts/keys to request before either provider can be
 tested against a real sandbox, let alone production.
 
 Every account-creation step below is real-world (a business account,
@@ -120,7 +120,7 @@ above), so none of this applies right now. If it ever did change direction:
   resulting carrier + tracking number into the existing shipment modal by
   hand. Concretely: `uspsProvider.supportsAutoTracking` flips from `true`
   to `false`, and auto-create-shipment-on-payment simply skips USPS the
-  same way it already skips `internal` and `shopify`.
+  same way it already skips `internal`.
 - **`getQuote` (Rating API) and `getShipment` (Tracking API) are
   unaffected** — neither needs a spending credential, so pricing at
   checkout and tracking-status polling/webhooks keep working exactly as
@@ -129,10 +129,3 @@ above), so none of this applies right now. If it ever did change direction:
   call and reusing the manual-entry pattern that already exists for
   `internalProvider`, not a redesign.
 
----
-
-## Not covered here
-
-Shopify is excluded from the shipping-provider chain entirely — see
-`docs/shopify-ups-integration-plan.md` §0 for why. Nothing to request for
-it in this checklist.

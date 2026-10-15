@@ -4,14 +4,14 @@ const { getUpsClient, UPS_ACCOUNT_NUMBER } = require("../../config/ups");
 // UPS's JSON Rating/Shipping/Tracking/Label-Recovery request & response
 // shapes below follow their published Developer Portal structure as of this
 // writing — we don't have live credentials yet (see
-// docs/shopify-ups-integration-plan.md), so treat exact field names as
+// docs/shipping-provider-integration-plan.md), so treat exact field names as
 // best-effort until the first real call against UPS's sandbox confirms them.
 const RATING_VERSION = "v2409";
 const SHIPPING_VERSION = "v2409";
 const TRACKING_VERSION = "v1";
 
-// PDF by default per docs/shopify-ups-integration-plan.md — GIF/ZPL are the
-// alternatives for a thermal label printer.
+// PDF by default per docs/shipping-provider-integration-plan.md — GIF/ZPL
+// are the alternatives for a thermal label printer.
 const LABEL_FORMAT = "PDF";
 const LABEL_CONTENT_TYPES = {
   PDF: "application/pdf",
@@ -46,9 +46,8 @@ const buildLabel = (graphicImageBase64) => {
 };
 
 // UPS's tracking "status type" codes, mapped to our own SHIPMENT_STATUS
-// enum — same philosophy as shopifyProvider's mapping function, provider
-// event names never leak past this. Verify against live responses once
-// credentials exist.
+// enum — provider event names never leak past this function. Verify
+// against live responses once credentials exist.
 const mapUpsStatus = (upsStatusType) => {
   const map = {
     D: "delivered",
@@ -62,7 +61,7 @@ const mapUpsStatus = (upsStatusType) => {
 };
 
 // Real destination-aware quote — the genuine second opinion in the fallback
-// chain (unlike shopifyProvider, which has no rate API to call at all).
+// chain alongside internalProvider.
 const getQuote = async ({ items, destination, origin, currency }) => {
   if (!destination?.country) {
     throw new Error("Destination country is required for a UPS quote");
@@ -230,7 +229,7 @@ const getShipment = async ({ providerShipmentId }) => {
   };
 };
 
-// Best-effort fallback only — see docs/shopify-ups-integration-plan.md
+// Best-effort fallback only — see docs/shipping-provider-integration-plan.md
 // ("Recovery vs. storage"). We store the label ourselves at creation time;
 // this is called by shipmentController's label route only when that stored
 // copy is unexpectedly missing.

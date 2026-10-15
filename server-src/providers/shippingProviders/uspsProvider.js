@@ -7,8 +7,8 @@ const {
 
 // USPS's OAuth2 "USPS APIs" platform request/response shapes below follow
 // their published Developer Portal structure as of this writing — no live
-// credentials yet (see docs/shopify-ups-integration-plan.md), so treat
-// exact field names as best-effort until the first real sandbox call
+// credentials yet (see docs/shipping-provider-integration-plan.md), so
+// treat exact field names as best-effort until the first real sandbox call
 // confirms them, same caveat as upsProvider.js.
 const PRICES_VERSION = "v3";
 const LABELS_VERSION = "v3";
