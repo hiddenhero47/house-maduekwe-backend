@@ -21,7 +21,7 @@ const shipmentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // "internal" | "shopify" | "dhl" | "fedex" — matches ShippingSettings.activeProvider
+    // "internal" | "ups" | "usps" | "dhl" | "fedex" — matches ShippingSettings.activeProvider
     provider: {
       type: String,
       required: true,
@@ -34,8 +34,8 @@ const shipmentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // The physical carrier, which may differ from `provider` (e.g. provider
-    // "shopify" fulfilling via carrier "DHL").
+    // The physical carrier, which may differ from `provider` for a
+    // multi-carrier provider fulfilling via a named carrier underneath it.
     carrier: {
       type: String,
     },
@@ -78,6 +78,23 @@ const shipmentSchema = new mongoose.Schema(
     // kept for debugging — never used as the source of truth for reads.
     raw: {
       type: mongoose.Schema.Types.Mixed,
+    },
+
+    // Metadata only — the actual bytes live under server-src/private/, never
+    // in Mongo and never under the public static folder. See
+    // helpers/privateFileManager.js and docs/shipping-provider-integration-plan.md.
+    files: {
+      type: [
+        {
+          kind: { type: String, required: true }, // "label" for now
+          format: { type: String, required: true }, // "PDF" | "GIF" | "ZPL"
+          filename: { type: String, required: true },
+          path: { type: String, required: true }, // relative to PRIVATE_DIR
+          contentType: { type: String, required: true },
+          storedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
     },
 
     createdBy: {

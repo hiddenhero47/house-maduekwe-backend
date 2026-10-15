@@ -3,13 +3,18 @@ const mongoose = require("mongoose");
 // Full roster this architecture is designed for — not all registered yet.
 const SHIPPING_PROVIDERS = {
   INTERNAL: "internal",
-  SHOPIFY: "shopify",
+  UPS: "ups",
+  USPS: "usps",
   DHL: "dhl",
   FEDEX: "fedex",
 };
 
 // Only providers actually registered in providers/shippingProviders/index.js.
-const ENABLED_SHIPPING_PROVIDERS = [SHIPPING_PROVIDERS.INTERNAL];
+const ENABLED_SHIPPING_PROVIDERS = [
+  SHIPPING_PROVIDERS.INTERNAL,
+  SHIPPING_PROVIDERS.UPS,
+  SHIPPING_PROVIDERS.USPS,
+];
 
 // Singleton — one settings row for the whole app.
 const shippingSettingsSchema = new mongoose.Schema(
@@ -28,6 +33,14 @@ const shippingSettingsSchema = new mongoose.Schema(
     autoCreateShipment: {
       type: Boolean,
       default: false,
+    },
+
+    // Ordered — tried in sequence, after activeProvider, when a quote comes
+    // back null ("can't serve this destination") or errors out.
+    fallbackProviders: {
+      type: [String],
+      enum: ENABLED_SHIPPING_PROVIDERS,
+      default: [],
     },
 
     originAddress: {

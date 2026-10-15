@@ -13,6 +13,15 @@ const shippingSettingsValidationSchema = yup.object({
 
   autoCreateShipment: yup.boolean().optional(),
 
+  fallbackProviders: yup
+    .array()
+    .of(
+      yup
+        .string()
+        .oneOf(ENABLED_SHIPPING_PROVIDERS, "Invalid or disabled shipping provider"),
+    )
+    .optional(),
+
   // .default(undefined) is required — otherwise a nested .default() (zipCode
   // below) makes Yup synthesize this object even when unset, failing its
   // required() fields on requests that don't touch originAddress at all.

@@ -83,14 +83,14 @@ describe("PUT /api/shipping-settings", () => {
     expect(res.body.originAddress.city).toBe("Austin");
   });
 
-  it("rejects selecting a disabled/unregistered provider (e.g. shopify)", async () => {
+  it("rejects selecting a disabled/unregistered provider (e.g. dhl)", async () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
 
     const res = await request(app)
       .put("/api/shipping-settings")
       .set("Authorization", `Bearer ${token}`)
-      .send({ activeProvider: "shopify" });
+      .send({ activeProvider: "dhl" });
 
     expect(res.status).toBe(400);
   });

@@ -21,7 +21,11 @@ const createApp = () => {
     express.raw({ type: "application/json" }),
   );
   app.use(
-    "/api/shipments/shopify/webhook",
+    "/api/shipments/ups/webhook",
+    express.raw({ type: "application/json" }),
+  );
+  app.use(
+    "/api/shipments/usps/webhook",
     express.raw({ type: "application/json" }),
   );
   const forms = multer();
