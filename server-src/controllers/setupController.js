@@ -127,6 +127,10 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
       {
         listenerURL,
         secret,
+        // Not in the downloaded OpenAPI spec at all, but USPS's live
+        // validator rejects a request without it ("Subscriptions must have
+        // a correlationId field") — a unique id per subscription request.
+        correlationId: crypto.randomUUID(),
         adminNotification: [
           {
             email: "support.housemaduekwe@gmail.com",
