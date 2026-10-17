@@ -144,7 +144,11 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
   const requestBody = {
     listenerURL,
     secret,
+    // Sent in both casings — camelCase (matches the exact field name USPS's
+    // error echoes back) and PascalCase — in case their deserializer binds
+    // on a different casing than what it logs back in the error message.
     correlationId,
+    CorrelationId: correlationId,
     adminNotification: [
       {
         email: "support.housemaduekwe@gmail.com",
@@ -170,7 +174,12 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
         // `additionalProperties: true` is honored — the body/header are
         // syntactically accepted, just not read into whatever the business
         // layer checks. Still unresolved; see docs/shipping-provider-integration-plan.md.
-        headers: { "X-Correlation-Id": correlationId },
+        // Sending both a plain `correlationId` header and the `X-`-prefixed
+        // convention, in case the gateway reads an unprefixed header name.
+        headers: {
+          correlationId,
+          "X-Correlation-Id": correlationId,
+        },
       },
     );
 
@@ -193,8 +202,8 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
         correlationId,
         correlationIdType: typeof correlationId,
         correlationIdLength: correlationId.length,
-        sentInBodyAs: "correlationId",
-        sentInHeaderAs: "X-Correlation-Id",
+        sentInBodyAs: ["correlationId", "CorrelationId"],
+        sentInHeaderAs: ["correlationId", "X-Correlation-Id"],
         fullRequestBody: requestBody,
       },
     };
