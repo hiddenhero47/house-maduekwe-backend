@@ -202,6 +202,31 @@ Real differences from UPS, not just copy-paste:
   other length), a required `adminNotification` array of `{email}`, and
   `filterProperties: { MID, trackingEventTypes }` (filtering by MID, not
   `mailerId` as originally guessed).
+- **A required `correlationId` that isn't in the spec at all, and isn't a
+  code problem.** Live USPS rejected every subscription request with
+  "Subscriptions must have a correlationId field" no matter where it was
+  sent (body field, `X-Correlation-Id` header, query param — the query
+  param was flatly rejected by their gateway's own OAS validation as
+  unexpected, confirming it isn't a query param at all). The actual fix had
+  nothing to do with the request shape: USPS's own Onboarding Guide
+  (`onboarding-guide.pdf`, section 2.5 "Claims Process") calls out
+  **Subscriptions API users** as needing to run a one-time "Refresh Claims"
+  step in the Customer Onboarding Portal (`cop.usps.com` → My Apps →
+  Developer Apps → Manage → Refresh Claims) to link the App to
+  subscriptions — the same linking step Label/payment-account users do for
+  CRIDs/MIDs/payment accounts, just not yet run for Subscriptions. Running
+  it resolved the `correlationId` error completely.
+- **USPS's Tracking API Access Controls (new policy, effective 4/1/2026).**
+  After the Claims fix, subscription creation now gets a 403: "The
+  requested MID is not authorized to access
+  /subscriptions-tracking/v3r2/subscriptions... If you still require
+  access submit an IP Agreement inquiry." This is a separate, per-MID
+  authorization gate USPS added to the Tracking API — not something fixable
+  from our side at all. Resolving it requires either emailing USPS API
+  Support with an IP Agreement inquiry, or calling the API Access Control
+  Helpdesk (1-877-672-0007, option 6 then option 2) to authorize
+  `USPS_MAILER_ID` for Tracking API access. This is the current blocker on
+  actually completing USPS webhook registration.
 - **No confirmed Label Recovery equivalent.** `uspsProvider` doesn't export
   `recoverLabel` at all — `shipmentController.getShipmentLabel`'s recovery
   fallback is now generic (`typeof provider.recoverLabel === "function"`)
