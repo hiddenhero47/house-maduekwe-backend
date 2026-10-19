@@ -24,7 +24,7 @@ router.delete(
 
 router.post(
   "/register-usps-webhook",
-  timeWindowGuard("2026-10-17T00:00:00Z", 24),
+  timeWindowGuard("2026-10-19T00:00:00Z", 24),
   registerUspsWebhook,
 );
 
