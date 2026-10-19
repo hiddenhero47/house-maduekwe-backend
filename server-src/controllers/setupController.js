@@ -96,11 +96,6 @@ const clearOrdersPaymentsAndShipments = asyncHandler(async (req, res) => {
 //          updates to processUspsShipmentEvent instead of us polling.
 // @route   POST /api/setup/register-usps-webhook
 // @access  Private/Admin (time-window guarded, see setupRoutes)
-//
-// Matches USPS's "Subscriptions - Tracking 3.2" spec
-// (docs/subscriptions-tracking-v3r2_6.yaml): POST {base}/subscriptions-
-// tracking/v3r2/subscriptions, with `secret` required to be exactly 32
-// characters and `adminNotification` a required array of {email}.
 const registerUspsWebhook = asyncHandler(async (req, res) => {
   const { listenerURL } = req.body;
 
@@ -115,45 +110,19 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
     throw new Error(
       `USPS_WEBHOOK_SECRET must be exactly 32 characters (currently ${
         secret ? secret.length : 0
-      }) — USPS rejects any other length.`,
+      }).`,
     );
   }
 
   const client = await getUspsClient();
-
-  // `correlationId` isn't in the downloaded OpenAPI spec at all, and USPS's
-  // live validator keeps echoing it back empty even when it's sent as a
-  // body field with that exact name — while every other field (even ones
-  // renamed internally, like MID -> mailerId) binds correctly. That pattern
-  // points to it being a gateway-level tracing header rather than an
-  // application body field, so it's sent both ways here.
   const correlationId = crypto.randomUUID();
-
-  // Sanity-check what we actually generated before blaming USPS further —
-  // if this ever isn't a real 36-char UUID string, that's the bug, not
-  // their side.
-  if (typeof correlationId !== "string" || correlationId.length !== 36) {
-    res.status(500);
-    throw new Error(
-      `correlationId generation produced something unexpected: ${JSON.stringify(
-        correlationId,
-      )} (type: ${typeof correlationId})`,
-    );
-  }
 
   const requestBody = {
     listenerURL,
     secret,
-    // Sent in both casings — camelCase (matches the exact field name USPS's
-    // error echoes back) and PascalCase — in case their deserializer binds
-    // on a different casing than what it logs back in the error message.
     correlationId,
     CorrelationId: correlationId,
-    adminNotification: [
-      {
-        email: "support.housemaduekwe@gmail.com",
-      },
-    ],
+    adminNotification: [{ email: "support.housemaduekwe@gmail.com" }],
     filterProperties: {
       MID: USPS_MAILER_ID,
       trackingEventTypes: ["ALL_UPDATES"],
@@ -165,17 +134,6 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
       "/subscriptions-tracking/v3r2/subscriptions",
       requestBody,
       {
-        // Confirmed wrong and removed: a query param. The gateway's own
-        // OpenAPI validation rejects it outright ("query parameter is
-        // unexpected: correlationId") — this endpoint takes no query
-        // params at all per the spec. That the gateway does NOT reject
-        // correlationId as a body field/header (only flags query params as
-        // "unexpected") confirms the Subscription schema's
-        // `additionalProperties: true` is honored — the body/header are
-        // syntactically accepted, just not read into whatever the business
-        // layer checks. Still unresolved; see docs/shipping-provider-integration-plan.md.
-        // Sending both a plain `correlationId` header and the `X-`-prefixed
-        // convention, in case the gateway reads an unprefixed header name.
         headers: {
           correlationId,
           "X-Correlation-Id": correlationId,
@@ -193,19 +151,9 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
       "USPS rejected the subscription request — see data for the raw response.",
     );
     error.statusCode = err.response?.status || 502;
-    // Echo back exactly what we generated/sent, alongside USPS's response,
-    // so a failure is diagnosable from the API response alone — no server
-    // log access needed to see whether our correlationId was ever good.
     error.data = {
       uspsResponse: err.response?.data || err.message,
-      whatWeSent: {
-        correlationId,
-        correlationIdType: typeof correlationId,
-        correlationIdLength: correlationId.length,
-        sentInBodyAs: ["correlationId", "CorrelationId"],
-        sentInHeaderAs: ["correlationId", "X-Correlation-Id"],
-        fullRequestBody: requestBody,
-      },
+      whatWeSent: { correlationId, requestBody },
     };
     throw error;
   }
