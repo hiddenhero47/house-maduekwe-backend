@@ -216,17 +216,24 @@ Real differences from UPS, not just copy-paste:
   subscriptions — the same linking step Label/payment-account users do for
   CRIDs/MIDs/payment accounts, just not yet run for Subscriptions. Running
   it resolved the `correlationId` error completely.
-- **USPS's Tracking API Access Controls (new policy, effective 4/1/2026).**
-  After the Claims fix, subscription creation now gets a 403: "The
+- **USPS's Tracking API Access Controls (new policy, effective 4/1/2026) —
+  RESOLVED.** After the Claims fix, subscription creation got a 403: "The
   requested MID is not authorized to access
   /subscriptions-tracking/v3r2/subscriptions... If you still require
-  access submit an IP Agreement inquiry." This is a separate, per-MID
-  authorization gate USPS added to the Tracking API — not something fixable
-  from our side at all. Resolving it requires either emailing USPS API
-  Support with an IP Agreement inquiry, or calling the API Access Control
-  Helpdesk (1-877-672-0007, option 6 then option 2) to authorize
-  `USPS_MAILER_ID` for Tracking API access. This is the current blocker on
-  actually completing USPS webhook registration.
+  access submit an IP Agreement inquiry." This turned out to be account-side
+  only, not a request-shape or code problem — USPS's own Business Portal
+  text confirms the IP Agreement/"Request Tracking Access" flow is for
+  businesses tracking *other companies'* packages, which never applied
+  here (self-shipper, own MID). Took several rounds with USPS API Support
+  (Service Request #92446487) over about three weeks, including one wrong
+  answer ("register as a CEC Platform" — a heavier marketplace program that
+  doesn't apply either) before it was cleared on their end. As of
+  2026-10-21, `register-usps-webhook` succeeds for real:
+  `status: "ENABLED"`, `accessControl: "FREE"`, with a real
+  `subscriptionId` returned. **That `subscriptionId` isn't persisted
+  anywhere in the codebase** — USPS's PUT/DELETE endpoints for managing the
+  subscription later need it plus an ETag, so it should be saved
+  (env var or DB) rather than left to only exist in that one API response.
 - **No confirmed Label Recovery equivalent.** `uspsProvider` doesn't export
   `recoverLabel` at all — `shipmentController.getShipmentLabel`'s recovery
   fallback is now generic (`typeof provider.recoverLabel === "function"`)
