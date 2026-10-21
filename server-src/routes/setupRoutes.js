@@ -9,7 +9,7 @@ const { timeWindowGuard } = require("../middleware/timeMiddleware");
 const { protect, secureRole } = require("../middleware/authMiddleware");
 const { ROLE } = require("../models/userModel");
 
-// Example: allow only on 2026-10-01 for 24 hours
+// Example: allow only on 2026-10-02 for 24 hours
 router.post(
   "/get-started",
   timeWindowGuard("2026-04-05T00:00:00Z", 24),
