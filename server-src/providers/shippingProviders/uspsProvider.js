@@ -31,6 +31,10 @@ const LABEL_CONTENT_TYPES = {
 
 const LB_PER_KG = 2.2046226218;
 
+// Inches. Standard small/medium parcel box — placeholder until the catalog
+// tracks real per-item dimensions.
+const DEFAULT_PACKAGE_DIMENSIONS_IN = { length: 12, width: 9, height: 6 };
+
 const sumWeightLbs = (items = []) =>
   items.reduce(
     (total, item) => total + ((item.weightGrams || 0) / 1000) * LB_PER_KG,
@@ -80,6 +84,17 @@ const getQuote = async ({ items, destination, origin, currency }) => {
     originZIPCode: origin.zipCode,
     destinationZIPCode: destination.zipCode,
     weight: Number(weightLbs.toFixed(2)),
+    // Catalog has no per-item dimensions yet (ShopItem only tracks weight),
+    // so standing in a generic small-parcel box until real dimensions
+    // exist — same "good enough for now" approach as the weight floor
+    // above. processingCategory/destinationEntryFacilityType/rateIndicator
+    // are confirmed-working values from a live USPS example
+    // (github.com/USPS/api-examples#22); "DR" describes package shape,
+    // not mail class, so it should hold for Ground Advantage too.
+    ...DEFAULT_PACKAGE_DIMENSIONS_IN,
+    processingCategory: "MACHINABLE",
+    destinationEntryFacilityType: "NONE",
+    rateIndicator: "DR",
     mailClass: "USPS_GROUND_ADVANTAGE",
     priceType: "COMMERCIAL",
     accountType: "EPS",
