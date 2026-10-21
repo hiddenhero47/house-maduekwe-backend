@@ -76,21 +76,34 @@ const getQuote = async ({ items, destination, origin, currency }) => {
 
   const weightLbs = Math.max(sumWeightLbs(items), 0.1);
 
+  const requestBody = {
+    originZIPCode: origin.zipCode,
+    destinationZIPCode: destination.zipCode,
+    weight: Number(weightLbs.toFixed(2)),
+    mailClass: "USPS_GROUND_ADVANTAGE",
+    priceType: "COMMERCIAL",
+    accountType: "EPS",
+    accountNumber: USPS_EPS_ACCOUNT_NUMBER,
+    mailingDate: new Date().toISOString().slice(0, 10),
+  };
+
+  console.log(
+    `[USPS_QUOTE] POST /prices/${PRICES_VERSION}/base-rates/search`,
+    requestBody,
+  );
+
   try {
     const client = await getUspsClient();
 
-    const { data } = await client.post(`/prices/${PRICES_VERSION}/base-rates/search`, {
-      originZIPCode: origin.zipCode,
-      destinationZIPCode: destination.zipCode,
-      weight: Number(weightLbs.toFixed(2)),
-      mailClass: "USPS_GROUND_ADVANTAGE",
-      priceType: "COMMERCIAL",
-      accountType: "EPS",
-      accountNumber: USPS_EPS_ACCOUNT_NUMBER,
-      mailingDate: new Date().toISOString().slice(0, 10),
-    });
+    const { data } = await client.post(
+      `/prices/${PRICES_VERSION}/base-rates/search`,
+      requestBody,
+    );
+
+    console.log("[USPS_QUOTE] response:", data);
 
     if (!data?.totalBasePrice) {
+      console.log("[USPS_QUOTE] no totalBasePrice in response — returning null");
       return null; // no serviceable rate for this destination
     }
 
@@ -100,6 +113,12 @@ const getQuote = async ({ items, destination, origin, currency }) => {
       raw: data,
     };
   } catch (err) {
+    console.error(
+      "[USPS_QUOTE] request failed:",
+      err.response?.status,
+      err.response?.data || err.message,
+    );
+
     // A destination/ZIP USPS won't rate (bad ZIP, unsupported combo, etc.)
     // comes back as a 4xx — treat as "can't serve", same as upsProvider.
     if (err.response?.status >= 400 && err.response?.status < 500) {
