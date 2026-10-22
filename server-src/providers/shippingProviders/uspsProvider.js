@@ -150,10 +150,29 @@ const getQuote = async ({ items, destination, origin, currency }) => {
 const createShipment = async ({ order, items, destination, origin }) => {
   const weightLbs = Math.max(sumWeightLbs(items), 0.1);
 
-  const [client, paymentAuthorizationToken] = await Promise.all([
-    getUspsClient(),
-    getPaymentAuthorizationToken(),
-  ]);
+  let client;
+  try {
+    client = await getUspsClient();
+  } catch (err) {
+    console.error(
+      "[USPS_SHIPMENT] getUspsClient (OAuth token) failed:",
+      err.response?.status,
+      err.response?.data || err.message,
+    );
+    throw err;
+  }
+
+  let paymentAuthorizationToken;
+  try {
+    paymentAuthorizationToken = await getPaymentAuthorizationToken();
+  } catch (err) {
+    console.error(
+      "[USPS_SHIPMENT] getPaymentAuthorizationToken failed:",
+      err.response?.status,
+      err.response?.data || err.message,
+    );
+    throw err;
+  }
 
   const requestBody = {
     imageInfo: {
