@@ -155,41 +155,53 @@ const createShipment = async ({ order, items, destination, origin }) => {
     getPaymentAuthorizationToken(),
   ]);
 
-  const { data } = await client.post(
-    `/labels/${LABELS_VERSION}/label`,
-    {
-      imageInfo: {
-        imageType: LABEL_FORMAT,
-        labelType: "4X6LABEL",
-        receiptOption: "NONE",
-      },
-      toAddress: {
-        firstName: order.consigneesName || "Customer",
-        streetAddress: destination.fullAddress,
-        city: destination.city,
-        state: destination.state,
-        ZIPCode: destination.zipCode,
-      },
-      fromAddress: {
-        firstName: "House Maduekwe",
-        streetAddress: origin.fullAddress,
-        city: origin.city,
-        state: origin.state,
-        ZIPCode: origin.zipCode,
-      },
-      packageDescription: {
-        weight: Number(weightLbs.toFixed(2)),
-        mailClass: "USPS_GROUND_ADVANTAGE",
-        mailingDate: new Date().toISOString().slice(0, 10),
-      },
-      mailerId: USPS_MAILER_ID,
+  const requestBody = {
+    imageInfo: {
+      imageType: LABEL_FORMAT,
+      labelType: "4X6LABEL",
+      receiptOption: "NONE",
     },
-    {
+    toAddress: {
+      firstName: order.consigneesName || "Customer",
+      streetAddress: destination.fullAddress,
+      city: destination.city,
+      state: destination.state,
+      ZIPCode: destination.zipCode,
+    },
+    fromAddress: {
+      firstName: "House Maduekwe",
+      streetAddress: origin.fullAddress,
+      city: origin.city,
+      state: origin.state,
+      ZIPCode: origin.zipCode,
+    },
+    packageDescription: {
+      weight: Number(weightLbs.toFixed(2)),
+      mailClass: "USPS_GROUND_ADVANTAGE",
+      mailingDate: new Date().toISOString().slice(0, 10),
+    },
+    mailerId: USPS_MAILER_ID,
+  };
+
+  console.log(`[USPS_SHIPMENT] POST /labels/${LABELS_VERSION}/label`, requestBody);
+
+  let data;
+  try {
+    ({ data } = await client.post(`/labels/${LABELS_VERSION}/label`, requestBody, {
       headers: {
         "X-Payment-Authorization-Token": paymentAuthorizationToken,
       },
-    },
-  );
+    }));
+  } catch (err) {
+    console.error(
+      "[USPS_SHIPMENT] request failed:",
+      err.response?.status,
+      err.response?.data || err.message,
+    );
+    throw err;
+  }
+
+  console.log("[USPS_SHIPMENT] response:", data);
 
   const trackingNumber = data?.labelMetadata?.trackingNumber;
 
