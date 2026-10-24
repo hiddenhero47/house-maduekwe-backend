@@ -161,6 +161,8 @@ describe("GET /api/shop-items", () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(res.body.data[0].name).toBe("Expensive Shirt");
+    expect(res.body.data[0]).not.toHaveProperty("isDeleted");
+    expect(res.body.data[0]).not.toHaveProperty("deletedAt");
   });
 
   it("filters by category", async () => {
@@ -195,6 +197,8 @@ describe("GET /api/shop-items/:id", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.category.name).toBe(category.name);
+    expect(res.body.data).not.toHaveProperty("isDeleted");
+    expect(res.body.data).not.toHaveProperty("deletedAt");
   });
 
   it("404s for a soft-deleted item", async () => {

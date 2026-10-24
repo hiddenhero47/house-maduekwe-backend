@@ -8,6 +8,7 @@ const { Address } = require("../../server-src/models/addressModel");
 const Cart = require("../../server-src/models/cartModel");
 const { Order, ORDER_STATUS } = require("../../server-src/models/orderModel");
 const { Attribute, attributeType } = require("../../server-src/models/attributeModel");
+const { Package } = require("../../server-src/models/packageModel");
 
 // A real (tiny, valid) 1x1 transparent PNG — needed anywhere code validates
 // file type by magic bytes (server-src/helpers/fileManager.js), not just by
@@ -152,6 +153,16 @@ const createAttribute = async (overrides = {}) =>
     ...overrides,
   });
 
+const createPackage = async (overrides = {}) =>
+  Package.create({
+    name: `Test Package ${next()}`,
+    length: 12,
+    width: 9,
+    height: 6,
+    weight: { value: 0.3, unit: "kg" },
+    ...overrides,
+  });
+
 module.exports = {
   createUser,
   createAdmin,
@@ -163,6 +174,7 @@ module.exports = {
   createCart,
   createOrder,
   createAttribute,
+  createPackage,
   TEST_PNG_BASE64,
   TEST_PNG_BUFFER,
 };
