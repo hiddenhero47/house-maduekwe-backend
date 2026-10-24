@@ -12,6 +12,8 @@ const { Order, ORDER_STATUS } = require("../models/orderModel");
 const { Shipment } = require("../models/shipmentModel");
 const { deleteShipmentFiles } = require("../helpers/privateFileManager");
 const { getUspsClient, USPS_MAILER_ID } = require("../config/usps");
+const { Package } = require("../models/packageModel");
+const { ShopItem } = require("../models/shopItemModel");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -159,8 +161,45 @@ const registerUspsWebhook = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Create a default Package and backfill it onto every existing
+//          ShopItem that doesn't already have one — so the new package
+//          field is non-null across the catalog without requiring admin
+//          to manually re-save every product.
+// @route   POST /api/setup/backfill-default-package
+// @access  Private/Admin (time-window guarded, see setupRoutes)
+const backfillDefaultPackage = asyncHandler(async (req, res) => {
+  const DEFAULT_PACKAGE = {
+    name: "Standard Box",
+    length: 12,
+    width: 9,
+    height: 6,
+    weight: { value: 0.3, unit: "kg" },
+  };
+
+  let defaultPackage = await Package.findOne({
+    name: DEFAULT_PACKAGE.name,
+    isDeleted: false,
+  });
+
+  if (!defaultPackage) {
+    defaultPackage = await Package.create(DEFAULT_PACKAGE);
+  }
+
+  const { modifiedCount } = await ShopItem.updateMany(
+    { package: { $exists: false } },
+    { $set: { package: defaultPackage._id } },
+  );
+
+  res.json({
+    success: true,
+    package: defaultPackage,
+    shopItemsBackfilled: modifiedCount,
+  });
+});
+
 module.exports = {
   runSetupScripts,
   clearOrdersPaymentsAndShipments,
   registerUspsWebhook,
+  backfillDefaultPackage,
 };

@@ -5,12 +5,16 @@
 
 const {
   runSetupScripts,
+  backfillDefaultPackage,
 } = require("../../server-src/controllers/setupController");
 const { connectTestDB, disconnectTestDB, clearTestDB } = require("../setup/db");
 const { User, ROLE } = require("../../server-src/models/userModel");
 const { PaymentProvider } = require("../../server-src/models/paymentProviderModel");
 const { ExportFee } = require("../../server-src/models/exportFeeModel");
 const { ShippingSettings } = require("../../server-src/models/shippingSettingsModel");
+const { Package } = require("../../server-src/models/packageModel");
+const { ShopItem } = require("../../server-src/models/shopItemModel");
+const { createShopItem } = require("../setup/fixtures");
 
 const mockRes = () => {
   const res = {};
@@ -55,5 +59,41 @@ describe("runSetupScripts", () => {
     expect(await PaymentProvider.countDocuments({ provider: "stripe" })).toBe(1);
     expect(await ExportFee.countDocuments({ country: "US" })).toBe(1);
     expect(await ShippingSettings.countDocuments({})).toBe(1);
+  });
+});
+
+describe("backfillDefaultPackage", () => {
+  it("creates a default Package and backfills ShopItems missing one", async () => {
+    const itemWithoutPackage = await createShopItem();
+    const explicitPackage = await Package.create({
+      name: "Custom Box",
+      length: 20,
+      width: 15,
+      height: 10,
+    });
+    const itemWithPackage = await createShopItem({ package: explicitPackage._id });
+
+    const res = mockRes();
+    await backfillDefaultPackage({ body: {} }, res, jest.fn());
+
+    const defaultPackage = await Package.findOne({ name: "Standard Box" });
+    expect(defaultPackage).toBeTruthy();
+
+    const backfilledItem = await ShopItem.findById(itemWithoutPackage._id);
+    expect(backfilledItem.package.toString()).toBe(defaultPackage._id.toString());
+
+    const untouchedItem = await ShopItem.findById(itemWithPackage._id);
+    expect(untouchedItem.package.toString()).toBe(explicitPackage._id.toString());
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.shopItemsBackfilled).toBe(1);
+  });
+
+  it("is idempotent — running twice doesn't create a second default Package", async () => {
+    await backfillDefaultPackage({ body: {} }, mockRes(), jest.fn());
+    await backfillDefaultPackage({ body: {} }, mockRes(), jest.fn());
+
+    expect(await Package.countDocuments({ name: "Standard Box" })).toBe(1);
   });
 });

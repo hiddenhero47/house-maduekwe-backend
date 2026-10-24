@@ -4,6 +4,7 @@ const {
   runSetupScripts,
   clearOrdersPaymentsAndShipments,
   registerUspsWebhook,
+  backfillDefaultPackage,
 } = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
 const { protect, secureRole } = require("../middleware/authMiddleware");
@@ -26,6 +27,12 @@ router.post(
   "/register-usps-webhook",
   timeWindowGuard("2026-10-21T00:00:00Z", 24),
   registerUspsWebhook,
+);
+
+router.post(
+  "/backfill-default-package",
+  timeWindowGuard("2026-10-24T00:00:00Z", 24),
+  backfillDefaultPackage,
 );
 
 module.exports = router;
