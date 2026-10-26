@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { getUpsClient, UPS_ACCOUNT_NUMBER } = require("../../config/ups");
+const { combinePackages } = require("../../helpers/packageDimensionsHelper");
 
 // UPS's JSON Rating/Shipping/Tracking/Label-Recovery request & response
 // shapes below follow their published Developer Portal structure as of this
@@ -67,7 +68,11 @@ const getQuote = async ({ items, destination, origin, currency }) => {
     throw new Error("Destination country is required for a UPS quote");
   }
 
-  const weightKg = Math.max(sumWeightKg(items), 0.1); // UPS rejects a 0 weight
+  const combined = combinePackages(items);
+  const weightKg = Math.max(
+    sumWeightKg(items) + combined.packagingWeightKg,
+    0.1,
+  ); // UPS rejects a 0 weight
 
   try {
     const client = await getUpsClient();
@@ -86,6 +91,12 @@ const getQuote = async ({ items, destination, origin, currency }) => {
             Package: [
               {
                 PackagingType: { Code: "02" }, // Customer Supplied Package
+                Dimensions: {
+                  UnitOfMeasurement: { Code: "IN" },
+                  Length: combined.length.toFixed(1),
+                  Width: combined.width.toFixed(1),
+                  Height: combined.height.toFixed(1),
+                },
                 PackageWeight: {
                   UnitOfMeasurement: { Code: "KGS" },
                   Weight: weightKg.toFixed(1),
@@ -127,7 +138,11 @@ const getQuote = async ({ items, destination, origin, currency }) => {
 // Buys the label — self-serves a real tracking number, no manual carrier
 // entry needed (supportsAutoTracking: true below).
 const createShipment = async ({ order, items, destination, origin }) => {
-  const weightKg = Math.max(sumWeightKg(items), 0.1);
+  const combined = combinePackages(items);
+  const weightKg = Math.max(
+    sumWeightKg(items) + combined.packagingWeightKg,
+    0.1,
+  );
 
   const client = await getUpsClient();
 
@@ -160,6 +175,12 @@ const createShipment = async ({ order, items, destination, origin }) => {
           Package: [
             {
               Packaging: { Code: "02" },
+              Dimensions: {
+                UnitOfMeasurement: { Code: "IN" },
+                Length: combined.length.toFixed(1),
+                Width: combined.width.toFixed(1),
+                Height: combined.height.toFixed(1),
+              },
               PackageWeight: {
                 UnitOfMeasurement: { Code: "KGS" },
                 Weight: weightKg.toFixed(1),
