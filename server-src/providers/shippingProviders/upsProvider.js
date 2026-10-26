@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { getUpsClient, UPS_ACCOUNT_NUMBER } = require("../../config/ups");
 const { combinePackages } = require("../../helpers/packageDimensionsHelper");
+const { toStateCode } = require("../../helpers/usStateHelper");
 
 // UPS's JSON Rating/Shipping/Tracking/Label-Recovery request & response
 // shapes below follow their published Developer Portal structure as of this
@@ -31,7 +32,7 @@ const sumWeightKg = (items = []) =>
 const buildAddress = (address = {}) => ({
   AddressLine: [address.fullAddress].filter(Boolean),
   City: address.city,
-  StateProvinceCode: address.state,
+  StateProvinceCode: toStateCode(address.state),
   PostalCode: address.zipCode,
   CountryCode: address.country,
 });
