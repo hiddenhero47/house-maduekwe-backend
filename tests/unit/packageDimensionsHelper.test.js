@@ -1,6 +1,5 @@
 const {
   combinePackages,
-  FALLBACK_PACKAGE_DIMENSIONS_IN,
 } = require("../../server-src/helpers/packageDimensionsHelper");
 
 describe("packageDimensionsHelper", () => {
@@ -77,44 +76,23 @@ describe("packageDimensionsHelper", () => {
       });
     });
 
-    it("falls back to the default box for items with no linked package", () => {
-      const result = combinePackages([{ package: null }]);
-
-      expect(result).toEqual({
-        ...FALLBACK_PACKAGE_DIMENSIONS_IN,
-        packagingWeightKg: 0,
-      });
+    it("throws if an item has no linked package", () => {
+      expect(() => combinePackages([{ name: "Mystery Item", package: null }])).toThrow(
+        /Mystery Item/,
+      );
     });
 
-    it("combines a real package with the fallback for an item missing one", () => {
-      const items = [
-        {
-          package: {
-            _id: "pkg1",
-            length: 20,
-            width: 2,
-            height: 2,
-            weight: { value: 0.1, unit: "kg" },
-          },
-        },
-        { package: null },
-      ];
-
-      const result = combinePackages(items);
-
-      expect(result.length).toBe(20); // max(20, fallback 12)
-      expect(result.width).toBe(FALLBACK_PACKAGE_DIMENSIONS_IN.width); // max(2, 9)
-      expect(result.height).toBe(2 + FALLBACK_PACKAGE_DIMENSIONS_IN.height); // sum
-      expect(result.packagingWeightKg).toBeCloseTo(0.1); // fallback contributes 0
-    });
-
-    it("returns the fallback box for an empty item list", () => {
+    it("returns zeros for an empty item list, not -Infinity from Math.max on []", () => {
       expect(combinePackages([])).toEqual({
-        ...FALLBACK_PACKAGE_DIMENSIONS_IN,
+        length: 0,
+        width: 0,
+        height: 0,
         packagingWeightKg: 0,
       });
       expect(combinePackages()).toEqual({
-        ...FALLBACK_PACKAGE_DIMENSIONS_IN,
+        length: 0,
+        width: 0,
+        height: 0,
         packagingWeightKg: 0,
       });
     });

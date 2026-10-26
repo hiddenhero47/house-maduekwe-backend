@@ -62,7 +62,7 @@ const shopItemValidationSchema = yup.object({
   category: objectIdExists(Category, "Category").required(
     "Category is required",
   ),
-  package: objectIdExists(Package, "Package").optional(),
+  package: objectIdExists(Package, "Package").required("Package is required"),
   subCategory: yup.string().optional(),
 
   quantity: yup.number().min(0).required("Quantity is required"),

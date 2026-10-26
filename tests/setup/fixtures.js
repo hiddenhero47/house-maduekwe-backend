@@ -69,6 +69,7 @@ const createCategory = async (overrides = {}) =>
 
 const createShopItem = async (overrides = {}) => {
   const category = overrides.category || (await createCategory())._id;
+  const pkg = overrides.package || (await createPackage())._id;
 
   return ShopItem.create({
     name: `Test Shirt ${next()}`,
@@ -80,6 +81,7 @@ const createShopItem = async (overrides = {}) => {
     imageCatalog: ["https://example.com/image.jpg"],
     ...overrides,
     category,
+    package: pkg,
   });
 };
 
