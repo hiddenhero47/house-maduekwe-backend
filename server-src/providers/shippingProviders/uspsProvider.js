@@ -135,7 +135,7 @@ const getQuote = async ({ items, destination, origin, currency }) => {
     console.error(
       "[USPS_QUOTE] request failed:",
       err.response?.status,
-      err.response?.data || err.message,
+      JSON.stringify(err.response?.data || err.message, null, 2),
     );
 
     // A destination/ZIP USPS won't rate (bad ZIP, unsupported combo, etc.)
@@ -165,7 +165,7 @@ const createShipment = async ({ order, items, destination, origin }) => {
     console.error(
       "[USPS_SHIPMENT] getUspsClient (OAuth token) failed:",
       err.response?.status,
-      err.response?.data || err.message,
+      JSON.stringify(err.response?.data || err.message, null, 2),
     );
     throw err;
   }
@@ -177,7 +177,7 @@ const createShipment = async ({ order, items, destination, origin }) => {
     console.error(
       "[USPS_SHIPMENT] getPaymentAuthorizationToken failed:",
       err.response?.status,
-      err.response?.data || err.message,
+      JSON.stringify(err.response?.data || err.message, null, 2),
     );
     throw err;
   }
@@ -232,7 +232,7 @@ const createShipment = async ({ order, items, destination, origin }) => {
     console.error(
       "[USPS_SHIPMENT] request failed:",
       err.response?.status,
-      err.response?.data || err.message,
+      JSON.stringify(err.response?.data || err.message, null, 2),
     );
     throw err;
   }
