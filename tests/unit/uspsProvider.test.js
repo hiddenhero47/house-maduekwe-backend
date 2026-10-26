@@ -168,6 +168,66 @@ describe("uspsProvider.createShipment", () => {
     );
   });
 
+  it("splits consigneesName into firstName/lastName for toAddress", async () => {
+    const client = mockClient((c) => {
+      c.post.mockResolvedValue({
+        data: { labelMetadata: { trackingNumber: "9400100000000000000000" } },
+      });
+    });
+
+    await uspsProvider.createShipment({
+      order: { _id: "order1", consigneesName: "Jane Doe" },
+      items: [],
+      destination: usAddress,
+      origin: usAddress,
+    });
+
+    const [, body] = client.post.mock.calls[0];
+    expect(body.toAddress.firstName).toBe("Jane");
+    expect(body.toAddress.lastName).toBe("Doe");
+    // "House Maduekwe" — our own fromAddress name — splits the same way.
+    expect(body.fromAddress.firstName).toBe("House");
+    expect(body.fromAddress.lastName).toBe("Maduekwe");
+  });
+
+  it("reuses a single-word name for both firstName and lastName", async () => {
+    const client = mockClient((c) => {
+      c.post.mockResolvedValue({
+        data: { labelMetadata: { trackingNumber: "9400100000000000000000" } },
+      });
+    });
+
+    await uspsProvider.createShipment({
+      order: { _id: "order1", consigneesName: "Cher" },
+      items: [],
+      destination: usAddress,
+      origin: usAddress,
+    });
+
+    const [, body] = client.post.mock.calls[0];
+    expect(body.toAddress.firstName).toBe("Cher");
+    expect(body.toAddress.lastName).toBe("Cher");
+  });
+
+  it("falls back to 'Customer' for a missing consigneesName", async () => {
+    const client = mockClient((c) => {
+      c.post.mockResolvedValue({
+        data: { labelMetadata: { trackingNumber: "9400100000000000000000" } },
+      });
+    });
+
+    await uspsProvider.createShipment({
+      order: { _id: "order1" },
+      items: [],
+      destination: usAddress,
+      origin: usAddress,
+    });
+
+    const [, body] = client.post.mock.calls[0];
+    expect(body.toAddress.firstName).toBe("Customer");
+    expect(body.toAddress.lastName).toBe("Customer");
+  });
+
   it("throws if USPS doesn't return a tracking number", async () => {
     mockClient((client) => {
       client.post.mockResolvedValue({ data: {} });
