@@ -1,6 +1,7 @@
 const yup = require("yup");
 const { STATUS } = require("../models/shopItemModel");
 const Category = require("../models/categoryModel");
+const { Package } = require("../models/packageModel");
 const { Attribute, attributeType } = require("../models/attributeModel");
 
 // ✅ Helper to validate and verify MongoDB ObjectId existence
@@ -61,6 +62,7 @@ const shopItemValidationSchema = yup.object({
   category: objectIdExists(Category, "Category").required(
     "Category is required",
   ),
+  package: objectIdExists(Package, "Package").optional(),
   subCategory: yup.string().optional(),
 
   quantity: yup.number().min(0).required("Quantity is required"),
