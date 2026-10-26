@@ -39,6 +39,20 @@ const sumWeightLbs = (items = []) =>
     0,
   );
 
+// USPS requires firstName + lastName (or a firm name) on both addresses —
+// this system only stores a single full-name string, so splitting it is a
+// stopgap until real firstName/lastName fields exist. A single-word name
+// (no space) is used for both, since USPS requires both to be non-empty.
+const splitFullName = (fullName, fallback = "Customer") => {
+  const trimmed = (fullName || "").trim() || fallback;
+  const parts = trimmed.split(/\s+/);
+
+  return {
+    firstName: parts[0],
+    lastName: parts.length > 1 ? parts.slice(1).join(" ") : parts[0],
+  };
+};
+
 const buildLabel = (labelImageBase64, format = LABEL_FORMAT) => {
   if (!labelImageBase64) return null;
 
@@ -189,14 +203,14 @@ const createShipment = async ({ order, items, destination, origin }) => {
       receiptOption: "NONE",
     },
     toAddress: {
-      firstName: order.consigneesName || "Customer",
+      ...splitFullName(order.consigneesName),
       streetAddress: destination.fullAddress,
       city: destination.city,
       state: toStateCode(destination.state),
       ZIPCode: destination.zipCode,
     },
     fromAddress: {
-      firstName: "House Maduekwe",
+      ...splitFullName("House Maduekwe"),
       streetAddress: origin.fullAddress,
       city: origin.city,
       state: toStateCode(origin.state),
