@@ -14,6 +14,9 @@ const {
 } = require("../helpers/shopItemHelper");
 const mongoose = require("mongoose");
 const ItemGroup = require("../models/itemGroupModel");
+const { toPublicShopItem } = require("../helpers/shopItemResponseBuilder");
+
+const PACKAGE_POPULATE_FIELDS = "name length width height weight";
 
 // @desc   Public Get Items (with filters + pagination)
 // @route  GET /api/shop-items
@@ -125,6 +128,7 @@ const getShopItems = asyncHandler(async (req, res) => {
     search ? { score: { $meta: "textScore" } } : {},
   )
     .populate("category", "name")
+    .populate("package", PACKAGE_POPULATE_FIELDS)
     .populate({
       path: "attributes.Attribute",
       select: "name value type display",
@@ -148,7 +152,7 @@ const getShopItems = asyncHandler(async (req, res) => {
       total,
       totalPages: Math.ceil(total / limit),
     },
-    data: items,
+    data: items.map(toPublicShopItem),
   });
 });
 
@@ -200,6 +204,7 @@ const createShopItem = asyncHandler(async (req, res) => {
   // ✅ Re-fetch with population
   const populatedItem = await ShopItem.findById(shopItem._id)
     .populate("category", "name")
+    .populate("package", PACKAGE_POPULATE_FIELDS)
     .populate({
       path: "attributes.Attribute",
       select: "name value type display",
@@ -301,6 +306,7 @@ const updateShopItem = asyncHandler(async (req, res) => {
     },
   )
     .populate("category", "name")
+    .populate("package", PACKAGE_POPULATE_FIELDS)
     .populate({
       path: "attributes.Attribute",
       select: "name value type display",
@@ -355,6 +361,7 @@ const getShopItemById = asyncHandler(async (req, res) => {
     isDeleted: false,
   })
     .populate("category", "name")
+    .populate("package", PACKAGE_POPULATE_FIELDS)
     .populate({
       path: "attributes.Attribute",
       select: "name value type display",
@@ -368,7 +375,7 @@ const getShopItemById = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: item,
+    data: toPublicShopItem(item),
   });
 });
 
@@ -482,6 +489,7 @@ const getRelatedShopItems = asyncHandler(async (req, res) => {
      =========================== */
   const populatedItems = await ShopItem.populate(relatedItems, [
     { path: "category", select: "name" },
+    { path: "package", select: PACKAGE_POPULATE_FIELDS },
     {
       path: "attributes.Attribute",
       select: "name value type display",
@@ -491,7 +499,7 @@ const getRelatedShopItems = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     total: populatedItems.length,
-    data: populatedItems,
+    data: populatedItems.map(toPublicShopItem),
   });
 });
 
