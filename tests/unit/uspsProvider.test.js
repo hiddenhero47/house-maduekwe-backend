@@ -22,6 +22,14 @@ const mockClient = (impl) => {
 
 const usAddress = { country: "US", zipCode: "78701", city: "Austin", state: "TX" };
 
+const testPackage = {
+  _id: "pkg1",
+  length: 12,
+  width: 9,
+  height: 6,
+  weight: { value: 0.3, unit: "kg" },
+};
+
 describe("uspsProvider.getQuote", () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -57,7 +65,7 @@ describe("uspsProvider.getQuote", () => {
     });
 
     const quote = await uspsProvider.getQuote({
-      items: [{ weightGrams: 2000 }],
+      items: [{ weightGrams: 2000, package: testPackage }],
       destination: usAddress,
       origin: usAddress,
       currency: "USD",
@@ -126,7 +134,7 @@ describe("uspsProvider.createShipment", () => {
 
     const result = await uspsProvider.createShipment({
       order: { _id: "order1", consigneesName: "Jane Doe" },
-      items: [{ weightGrams: 1000 }],
+      items: [{ weightGrams: 1000, package: testPackage }],
       destination: usAddress,
       origin: usAddress,
     });

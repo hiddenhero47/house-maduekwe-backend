@@ -19,7 +19,7 @@ router.post(
 
 router.delete(
   "/clear-orders-payments-shipments",
-  timeWindowGuard("2026-10-26T00:00:00Z", 24),
+  timeWindowGuard("2026-10-20T00:00:00Z", 24),
   clearOrdersPaymentsAndShipments,
 );
 

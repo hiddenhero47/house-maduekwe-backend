@@ -679,6 +679,7 @@ const getCheckoutData = async (req) => {
       path: "itemList.shopItem",
       populate: [
         { path: "category", select: "name" },
+        { path: "package", select: "name length width height weight" },
         {
           path: "attributes.Attribute",
           select: "name value type display",
@@ -1057,6 +1058,7 @@ const resolveShippingQuote = async ({
     weightGrams: kgToGrams(
       toKg(item.shopItem?.weight?.value, item.shopItem?.weight?.unit),
     ),
+    package: item.shopItem?.package,
   }));
 
   const destination = {
@@ -1209,6 +1211,7 @@ const getCheckoutDataGuest = async (req) => {
     isDeleted: false,
   }).populate([
     { path: "category", select: "name" },
+    { path: "package", select: "name length width height weight" },
     {
       path: "attributes.Attribute",
       select: "name value type display",

@@ -5,6 +5,7 @@ const {
   createAdmin,
   createUser,
   createCategory,
+  createPackage,
   generateToken,
   TEST_PNG_BUFFER,
   TEST_PNG_BASE64,
@@ -68,10 +69,11 @@ describe("POST /api/shop-items", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const res = await postShopItem(
       token,
-      baseItemData({ category: category._id.toString() }),
+      baseItemData({ category: category._id.toString(), package: pkg._id.toString() }),
     );
     trackUploads(res.body.data?.imageCatalog);
 
@@ -84,13 +86,18 @@ describe("POST /api/shop-items", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const res = await request(app)
       .post("/api/shop-items")
       .set("Authorization", `Bearer ${token}`)
       .send({
         data: JSON.stringify(
-          baseItemData({ category: category._id.toString(), base64: TEST_PNG_BASE64 }),
+          baseItemData({
+            category: category._id.toString(),
+            package: pkg._id.toString(),
+            base64: TEST_PNG_BASE64,
+          }),
         ),
       });
     trackUploads(res.body.data?.imageCatalog);
@@ -103,11 +110,12 @@ describe("POST /api/shop-items", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const res = await request(app)
       .post("/api/shop-items")
       .set("Authorization", `Bearer ${token}`)
-      .field("data", JSON.stringify(baseItemData({ category: category._id.toString() })));
+      .field("data", JSON.stringify(baseItemData({ category: category._id.toString(), package: pkg._id.toString() })));
 
     expect(res.status).toBe(400);
   });
@@ -116,10 +124,11 @@ describe("POST /api/shop-items", () => {
     const user = await createUser();
     const token = generateToken(user);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const res = await postShopItem(
       token,
-      baseItemData({ category: category._id.toString() }),
+      baseItemData({ category: category._id.toString(), package: pkg._id.toString() }),
     );
 
     expect(res.status).toBe(401);
@@ -128,10 +137,14 @@ describe("POST /api/shop-items", () => {
   it("rejects a category that doesn't exist", async () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
+    const pkg = await createPackage();
 
     const res = await postShopItem(
       token,
-      baseItemData({ category: "64b1f3f3f3f3f3f3f3f3f3f3" }),
+      baseItemData({
+        category: "64b1f3f3f3f3f3f3f3f3f3f3",
+        package: pkg._id.toString(),
+      }),
     );
 
     expect(res.status).toBe(400);
@@ -139,10 +152,14 @@ describe("POST /api/shop-items", () => {
 });
 
 describe("GET /api/shop-items", () => {
-  const createItem = async (token, category, overrides = {}) => {
+  const createItem = async (token, category, pkg, overrides = {}) => {
     const res = await postShopItem(
       token,
-      baseItemData({ category: category._id.toString(), ...overrides }),
+      baseItemData({
+        category: category._id.toString(),
+        package: pkg._id.toString(),
+        ...overrides,
+      }),
     );
     trackUploads(res.body.data?.imageCatalog);
     return res.body.data;
@@ -152,9 +169,10 @@ describe("GET /api/shop-items", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
-    await createItem(token, category, { name: "Cheap Shirt", price: 10 });
-    await createItem(token, category, { name: "Expensive Shirt", price: 200 });
+    await createItem(token, category, pkg, { name: "Cheap Shirt", price: 10 });
+    await createItem(token, category, pkg, { name: "Expensive Shirt", price: 200 });
 
     const res = await request(app).get("/api/shop-items?minPrice=100");
 
@@ -170,9 +188,10 @@ describe("GET /api/shop-items", () => {
     const token = generateToken(admin);
     const categoryA = await createCategory();
     const categoryB = await createCategory();
+    const pkg = await createPackage();
 
-    await createItem(token, categoryA, { name: "In A" });
-    await createItem(token, categoryB, { name: "In B" });
+    await createItem(token, categoryA, pkg, { name: "In A" });
+    await createItem(token, categoryB, pkg, { name: "In B" });
 
     const res = await request(app).get(`/api/shop-items?category=${categoryA._id}`);
 
@@ -186,10 +205,11 @@ describe("GET /api/shop-items/:id", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const created = await postShopItem(
       token,
-      baseItemData({ category: category._id.toString() }),
+      baseItemData({ category: category._id.toString(), package: pkg._id.toString() }),
     );
     trackUploads(created.body.data?.imageCatalog);
 
@@ -205,10 +225,11 @@ describe("GET /api/shop-items/:id", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const created = await postShopItem(
       token,
-      baseItemData({ category: category._id.toString() }),
+      baseItemData({ category: category._id.toString(), package: pkg._id.toString() }),
     );
     trackUploads(created.body.data?.imageCatalog);
 
@@ -226,10 +247,11 @@ describe("PUT /api/shop-items/:id", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const created = await postShopItem(
       token,
-      baseItemData({ category: category._id.toString() }),
+      baseItemData({ category: category._id.toString(), package: pkg._id.toString() }),
     );
     trackUploads(created.body.data?.imageCatalog);
 
@@ -238,7 +260,11 @@ describe("PUT /api/shop-items/:id", () => {
     const res = await putShopItem(
       token,
       created.body.data._id,
-      baseItemData({ category: category._id.toString(), price: 75 }),
+      baseItemData({
+        category: category._id.toString(),
+        package: pkg._id.toString(),
+        price: 75,
+      }),
     );
     trackUploads(res.body.data?.imageCatalog);
 
@@ -253,10 +279,11 @@ describe("DELETE /api/shop-items/:id", () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
+    const pkg = await createPackage();
 
     const created = await postShopItem(
       token,
-      baseItemData({ category: category._id.toString() }),
+      baseItemData({ category: category._id.toString(), package: pkg._id.toString() }),
     );
 
     const imagePath = created.body.data.imageCatalog[0].path;

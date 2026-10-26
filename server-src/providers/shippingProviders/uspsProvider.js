@@ -4,6 +4,7 @@ const {
   USPS_MAILER_ID,
   USPS_EPS_ACCOUNT_NUMBER,
 } = require("../../config/usps");
+const { combinePackages } = require("../../helpers/packageDimensionsHelper");
 
 // USPS's OAuth2 "USPS APIs" platform request/response shapes below follow
 // their published Developer Portal structure as of this writing — no live
@@ -30,10 +31,6 @@ const LABEL_CONTENT_TYPES = {
 };
 
 const LB_PER_KG = 2.2046226218;
-
-// Inches. Standard small/medium parcel box — placeholder until the catalog
-// tracks real per-item dimensions.
-const DEFAULT_PACKAGE_DIMENSIONS_IN = { length: 12, width: 9, height: 6 };
 
 const sumWeightLbs = (items = []) =>
   items.reduce(
@@ -78,20 +75,26 @@ const getQuote = async ({ items, destination, origin, currency }) => {
     return null; // USPS only ships within the US
   }
 
-  const weightLbs = Math.max(sumWeightLbs(items), 0.1);
+  const combined = combinePackages(items);
+  const weightLbs = Math.max(
+    sumWeightLbs(items) + combined.packagingWeightKg * LB_PER_KG,
+    0.1,
+  );
 
   const requestBody = {
     originZIPCode: origin.zipCode,
     destinationZIPCode: destination.zipCode,
     weight: Number(weightLbs.toFixed(2)),
-    // Catalog has no per-item dimensions yet (ShopItem only tracks weight),
-    // so standing in a generic small-parcel box until real dimensions
-    // exist — same "good enough for now" approach as the weight floor
-    // above. processingCategory/destinationEntryFacilityType/rateIndicator
-    // are confirmed-working values from a live USPS example
+    // Real dimensions from the items' linked Package(s) — combined via
+    // combinePackages (max length/width, summed height; falls back to a
+    // generic small-parcel box for any item with no Package linked yet).
+    // processingCategory/destinationEntryFacilityType/rateIndicator are
+    // confirmed-working values from a live USPS example
     // (github.com/USPS/api-examples#22); "DR" describes package shape,
     // not mail class, so it should hold for Ground Advantage too.
-    ...DEFAULT_PACKAGE_DIMENSIONS_IN,
+    length: Number(combined.length.toFixed(2)),
+    width: Number(combined.width.toFixed(2)),
+    height: Number(combined.height.toFixed(2)),
     processingCategory: "MACHINABLE",
     destinationEntryFacilityType: "NONE",
     rateIndicator: "DR",
@@ -148,7 +151,11 @@ const getQuote = async ({ items, destination, origin, currency }) => {
 // account configured in config/usps.js (Trust Account or ACH Debit — same
 // API shape either way, see USPS_EPS_ACCOUNT_NUMBER's comment there).
 const createShipment = async ({ order, items, destination, origin }) => {
-  const weightLbs = Math.max(sumWeightLbs(items), 0.1);
+  const combined = combinePackages(items);
+  const weightLbs = Math.max(
+    sumWeightLbs(items) + combined.packagingWeightKg * LB_PER_KG,
+    0.1,
+  );
 
   let client;
   try {
@@ -196,6 +203,9 @@ const createShipment = async ({ order, items, destination, origin }) => {
     },
     packageDescription: {
       weight: Number(weightLbs.toFixed(2)),
+      length: Number(combined.length.toFixed(2)),
+      width: Number(combined.width.toFixed(2)),
+      height: Number(combined.height.toFixed(2)),
       mailClass: "USPS_GROUND_ADVANTAGE",
       mailingDate: new Date().toISOString().slice(0, 10),
     },
