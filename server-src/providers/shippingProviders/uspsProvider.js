@@ -5,6 +5,7 @@ const {
   USPS_EPS_ACCOUNT_NUMBER,
 } = require("../../config/usps");
 const { combinePackages } = require("../../helpers/packageDimensionsHelper");
+const { toStateCode } = require("../../helpers/usStateHelper");
 
 // USPS's OAuth2 "USPS APIs" platform request/response shapes below follow
 // their published Developer Portal structure as of this writing — no live
@@ -191,14 +192,14 @@ const createShipment = async ({ order, items, destination, origin }) => {
       firstName: order.consigneesName || "Customer",
       streetAddress: destination.fullAddress,
       city: destination.city,
-      state: destination.state,
+      state: toStateCode(destination.state),
       ZIPCode: destination.zipCode,
     },
     fromAddress: {
       firstName: "House Maduekwe",
       streetAddress: origin.fullAddress,
       city: origin.city,
-      state: origin.state,
+      state: toStateCode(origin.state),
       ZIPCode: origin.zipCode,
     },
     packageDescription: {
@@ -206,6 +207,12 @@ const createShipment = async ({ order, items, destination, origin }) => {
       length: Number(combined.length.toFixed(2)),
       width: Number(combined.width.toFixed(2)),
       height: Number(combined.height.toFixed(2)),
+      // Same required classification fields as the Prices API quote —
+      // confirmed via a live 400 ("Object has missing required properties
+      // [rateIndicator]" / "[destinationEntryFacilityType,processingCategory]").
+      processingCategory: "MACHINABLE",
+      destinationEntryFacilityType: "NONE",
+      rateIndicator: "DR",
       mailClass: "USPS_GROUND_ADVANTAGE",
       mailingDate: new Date().toISOString().slice(0, 10),
     },
