@@ -106,6 +106,7 @@ const shopItemSchema = mongoose.Schema(
     package: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Package",
+      required: [true, "Package is needed for this item"],
     },
     subCategory: {
       type: String,

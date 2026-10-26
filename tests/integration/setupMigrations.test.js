@@ -14,7 +14,7 @@ const { ExportFee } = require("../../server-src/models/exportFeeModel");
 const { ShippingSettings } = require("../../server-src/models/shippingSettingsModel");
 const { Package } = require("../../server-src/models/packageModel");
 const { ShopItem } = require("../../server-src/models/shopItemModel");
-const { createShopItem } = require("../setup/fixtures");
+const { createShopItem, createCategory } = require("../setup/fixtures");
 
 const mockRes = () => {
   const res = {};
@@ -64,7 +64,21 @@ describe("runSetupScripts", () => {
 
 describe("backfillDefaultPackage", () => {
   it("creates a default Package and backfills ShopItems missing one", async () => {
-    const itemWithoutPackage = await createShopItem();
+    // `package` is now required on ShopItem, so the only way to simulate a
+    // pre-migration item genuinely missing it is a raw insert that bypasses
+    // Mongoose validation — same approach this test file's README section
+    // describes for other backfills (real legacy data, not a test mistake).
+    const category = await createCategory();
+    const { insertedId } = await ShopItem.collection.insertOne({
+      name: "Legacy Shirt",
+      price: 50,
+      currency: "USD",
+      quantity: 10,
+      category: category._id,
+      imageCatalog: ["https://example.com/image.jpg"],
+    });
+    const itemWithoutPackage = { _id: insertedId };
+
     const explicitPackage = await Package.create({
       name: "Custom Box",
       length: 20,

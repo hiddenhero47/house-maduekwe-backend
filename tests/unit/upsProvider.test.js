@@ -13,6 +13,14 @@ const mockClient = (impl) => {
   return client;
 };
 
+const testPackage = {
+  _id: "pkg1",
+  length: 12,
+  width: 9,
+  height: 6,
+  weight: { value: 0.3, unit: "kg" },
+};
+
 describe("upsProvider.getQuote", () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -36,7 +44,7 @@ describe("upsProvider.getQuote", () => {
     });
 
     const quote = await upsProvider.getQuote({
-      items: [{ weightGrams: 2000 }],
+      items: [{ weightGrams: 2000, package: testPackage }],
       destination: { country: "US", state: "TX" },
       origin: { country: "US" },
     });
@@ -106,7 +114,12 @@ describe("upsProvider.getQuote", () => {
     });
 
     await upsProvider.getQuote({
-      items: [{ weightGrams: 0 }],
+      items: [
+        {
+          weightGrams: 0,
+          package: { ...testPackage, weight: { value: 0, unit: "kg" } },
+        },
+      ],
       destination: { country: "US" },
       origin: {},
     });
@@ -142,7 +155,7 @@ describe("upsProvider.createShipment", () => {
 
     const result = await upsProvider.createShipment({
       order: { _id: "order1", consigneesName: "Jane Doe" },
-      items: [{ weightGrams: 1000 }],
+      items: [{ weightGrams: 1000, package: testPackage }],
       destination: { country: "US" },
       origin: { country: "US" },
     });

@@ -21,6 +21,7 @@ const buildProviderItems = (items = []) =>
     weightGrams: kgToGrams(
       toKg(item.shopItem?.weight?.value, item.shopItem?.weight?.unit),
     ),
+    package: item.shopItem?.package,
   }));
 
 // Shared by the manual admin route below and the auto-create-on-payment path

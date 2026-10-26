@@ -8,6 +8,7 @@ const {
   createExportFee,
   createAddress,
   createCart,
+  createPackage,
 } = require("../setup/fixtures");
 const Cart = require("../../server-src/models/cartModel");
 const { ShopItem } = require("../../server-src/models/shopItemModel");
@@ -73,6 +74,55 @@ describe("POST /api/orders/confirm-checkout", () => {
     expect(res.body.order.totalProductTax).toBe(20);
     expect(res.body.order.shippingFee).toBe(5); // Texas state override
     expect(res.body.order.totalVat).toBe(12); // state vat override (6%)
+  });
+
+  it("passes the item's linked Package dimensions/weight through to the provider", async () => {
+    const user = await createUser();
+    const token = generateToken(user);
+    const pkg = await createPackage({
+      length: 15,
+      width: 10,
+      height: 5,
+      weight: { value: 0.25, unit: "kg" },
+    });
+    const shopItem = await createShopItem({
+      price: 50,
+      weight: { value: 0.3, unit: "kg" },
+      package: pkg._id,
+    });
+
+    await createExportFee({
+      country: "US",
+      defaultAmount: 15,
+      defaultVat: 8,
+    });
+
+    const address = await createAddress({ user, country: "US", state: "Texas" });
+    const cart = await createCart({
+      user,
+      itemList: [{ shopItem: shopItem._id, quantity: 1 }],
+    });
+    const getQuoteSpy = jest.spyOn(internalProvider, "getQuote");
+
+    const res = await request(app)
+      .post("/api/orders/confirm-checkout")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        itemList: [cart.itemList[0]._id.toString()],
+        selectedAddress: address._id.toString(),
+      });
+
+    expect(res.status).toBe(200);
+
+    const calledItems = getQuoteSpy.mock.calls[0][0].items;
+    const calledPackage = calledItems.find(
+      (i) => i.name === shopItem.name,
+    )?.package;
+
+    expect(calledPackage.length).toBe(15);
+    expect(calledPackage.width).toBe(10);
+    expect(calledPackage.height).toBe(5);
+    expect(calledPackage.weight.value).toBe(0.25);
   });
 
   it("falls back to the country default when the address state has no override", async () => {
