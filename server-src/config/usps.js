@@ -84,7 +84,7 @@ const getPaymentAuthorizationToken = async () => {
 
   const client = await getUspsClient();
 
-  const { data } = await client.post("/payments/v3/payment-authorization", {
+  const requestBody = {
     roles: [
       {
         roleName: "PAYER",
@@ -94,8 +94,36 @@ const getPaymentAuthorizationToken = async () => {
         accountType: "EPS",
         accountNumber: USPS_EPS_ACCOUNT_NUMBER,
       },
+      // USPS rejects the request without a LABEL_OWNER role, even for a
+      // single-business account that's both payer and label owner —
+      // confirmed via a live 400 ("roles - LABEL_OWNER is required").
+      {
+        roleName: "LABEL_OWNER",
+        CRID: USPS_CRID,
+        MID: USPS_MAILER_ID,
+        manifestMID: USPS_MANIFEST_MID,
+      },
     ],
-  });
+  };
+
+  console.log("[USPS_PAYMENT_AUTH] POST /payments/v3/payment-authorization", requestBody);
+
+  let data;
+  try {
+    ({ data } = await client.post(
+      "/payments/v3/payment-authorization",
+      requestBody,
+    ));
+  } catch (err) {
+    console.error(
+      "[USPS_PAYMENT_AUTH] request failed:",
+      err.response?.status,
+      err.response?.data || err.message,
+    );
+    throw err;
+  }
+
+  console.log("[USPS_PAYMENT_AUTH] response:", data);
 
   if (!data?.paymentAuthorizationToken) {
     throw new Error("USPS did not return a payment authorization token");
