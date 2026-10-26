@@ -118,7 +118,7 @@ const getPaymentAuthorizationToken = async () => {
     console.error(
       "[USPS_PAYMENT_AUTH] request failed:",
       err.response?.status,
-      err.response?.data || err.message,
+      JSON.stringify(err.response?.data || err.message, null, 2),
     );
     throw err;
   }
