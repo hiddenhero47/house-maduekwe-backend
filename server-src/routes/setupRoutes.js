@@ -19,7 +19,7 @@ router.post(
 
 router.delete(
   "/clear-orders-payments-shipments",
-  timeWindowGuard("2026-10-15T00:00:00Z", 24),
+  timeWindowGuard("2026-10-26T00:00:00Z", 24),
   clearOrdersPaymentsAndShipments,
 );
 
@@ -31,7 +31,7 @@ router.post(
 
 router.post(
   "/backfill-default-package",
-  timeWindowGuard("2026-10-24T00:00:00Z", 24),
+  timeWindowGuard("2026-10-26T00:00:00Z", 24),
   backfillDefaultPackage,
 );
 
