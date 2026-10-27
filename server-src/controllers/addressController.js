@@ -23,7 +23,7 @@ const createAddress = asyncHandler(async (req, res) => {
     zipCode,
     addressLine2,
     description,
-    fullAddress,
+    addressLine1,
     coordinates,
     isDefault,
   } = req.body;
@@ -53,7 +53,7 @@ const createAddress = asyncHandler(async (req, res) => {
     zipCode,
     addressLine2,
     description,
-    fullAddress,
+    addressLine1,
     coordinates,
     isDefault: !!isDefault,
   });

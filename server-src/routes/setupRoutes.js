@@ -5,6 +5,7 @@ const {
   clearOrdersPaymentsAndShipments,
   registerUspsWebhook,
   backfillDefaultPackage,
+  normalizeAddressSchema,
 } = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
 const { protect, secureRole } = require("../middleware/authMiddleware");
@@ -19,7 +20,7 @@ router.post(
 
 router.delete(
   "/clear-orders-payments-shipments",
-  timeWindowGuard("2026-10-20T00:00:00Z", 24),
+  timeWindowGuard("2026-10-27T00:00:00Z", 24),
   clearOrdersPaymentsAndShipments,
 );
 
@@ -33,6 +34,12 @@ router.post(
   "/backfill-default-package",
   timeWindowGuard("2026-10-26T00:00:00Z", 24),
   backfillDefaultPackage,
+);
+
+router.post(
+  "/normalize-address-schema",
+  timeWindowGuard("2026-10-27T00:00:00Z", 24),
+  normalizeAddressSchema,
 );
 
 module.exports = router;

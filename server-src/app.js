@@ -104,6 +104,7 @@ const createApp = () => {
   app.use("/api/categories", require("./routes/categoryRoutes"));
   app.use("/api/shop-items", require("./routes/shopItemRoutes"));
   app.use("/api/packages", require("./routes/packageRoutes"));
+  app.use("/api/reference", require("./routes/referenceRoutes"));
   app.use("/api/cart", require("./routes/cartRoutes"));
   app.use("/api/item-groups", require("./routes/itemGroupRoutes"));
   app.use("/api/reviews", require("./routes/reviewRoutes"));

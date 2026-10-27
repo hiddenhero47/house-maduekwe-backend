@@ -1,7 +1,12 @@
 const yup = require("yup");
+const { isValidStateCode } = require("../helpers/countryReference");
 
 const stateFeeSchema = yup.object({
-  state: yup.string().required("State is required").trim().lowercase(),
+  // Format only here — Yup's `this.parent` inside a nested array item is
+  // the state object itself (siblings: amount, vat), not the grandparent
+  // ExportFee's `country`, so the real cross-field check against country
+  // lives on the `states` array field below instead.
+  state: yup.string().required("State is required").trim().uppercase(),
 
   amount: yup
     .number()
@@ -36,7 +41,15 @@ const exportFeeValidationSchema = yup.object({
     .test("unique-state", "Duplicate states are not allowed", (states = []) => {
       const names = states.map((s) => s.state);
       return new Set(names).size === names.length;
-    }),
+    })
+    .test(
+      "state-valid-for-country",
+      "One or more states are not recognized for this country",
+      function (states = []) {
+        const { country } = this.parent;
+        return states.every((s) => isValidStateCode(country, s.state));
+      },
+    ),
 
   isActive: yup.boolean(),
 });

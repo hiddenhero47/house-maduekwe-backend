@@ -1,7 +1,12 @@
 const request = require("supertest");
 const createApp = require("../../server-src/app");
 const { connectTestDB, disconnectTestDB, clearTestDB } = require("../setup/db");
-const { createAdmin, createUser, generateToken } = require("../setup/fixtures");
+const {
+  createAdmin,
+  createUser,
+  generateToken,
+  createExportFee,
+} = require("../setup/fixtures");
 
 const app = createApp();
 
@@ -66,6 +71,7 @@ describe("PUT /api/shipping-settings", () => {
   it("updates the origin address", async () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
+    await createExportFee({ country: "US" });
 
     const res = await request(app)
       .put("/api/shipping-settings")
@@ -73,9 +79,9 @@ describe("PUT /api/shipping-settings", () => {
       .send({
         originAddress: {
           country: "US",
-          state: "Texas",
+          state: "TX",
           city: "Austin",
-          fullAddress: "1 Warehouse Way",
+          addressLine1: "1 Warehouse Way",
         },
       });
 

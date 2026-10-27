@@ -99,9 +99,9 @@ const createAddress = async ({ user, ...overrides } = {}) =>
   Address.create({
     user: user._id,
     city: "Austin",
-    state: "Texas",
+    state: "TX",
     country: "US",
-    fullAddress: "123 Test St",
+    addressLine1: "123 Test St",
     zipCode: "78701",
     ...overrides,
   });
@@ -122,7 +122,7 @@ const createOrder = async ({
   Order.create({
     user: user._id,
     userEmail: user.email,
-    consigneesName: "Test Buyer",
+    consigneesName: { firstName: "Test", lastName: "Buyer" },
     checkoutType: "user-checkout",
     items: [
       {
@@ -133,9 +133,9 @@ const createOrder = async ({
     ],
     address: {
       country: "US",
-      state: "Texas",
+      state: "TX",
       city: "Austin",
-      fullAddress: "123 Test St",
+      addressLine1: "123 Test St",
       zipCode: "78701",
     },
     totalAmount: shopItem.price * quantity,

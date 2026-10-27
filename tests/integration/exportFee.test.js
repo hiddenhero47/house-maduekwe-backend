@@ -71,7 +71,7 @@ describe("SUPER_ADMIN-gated export-fee CRUD", () => {
         country: "US",
         defaultAmount: 10,
         defaultVat: 7.5,
-        states: [{ state: "texas", amount: 5, vat: 6 }],
+        states: [{ state: "TX", amount: 5, vat: 6 }],
       });
 
     const res = await request(app)
@@ -80,7 +80,7 @@ describe("SUPER_ADMIN-gated export-fee CRUD", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
-    expect(res.body[0].states[0].state).toBe("texas");
+    expect(res.body[0].states[0].state).toBe("TX");
   });
 
   it("updates an export fee (partial update)", async () => {
