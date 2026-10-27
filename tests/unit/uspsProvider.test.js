@@ -22,6 +22,32 @@ const mockClient = (impl) => {
 
 const usAddress = { country: "US", zipCode: "78701", city: "Austin", state: "TX" };
 
+// USPS's real Labels API response shape — multipart/form-data, not plain
+// JSON (confirmed live; axios can't auto-parse this, uspsProvider.js has to).
+const buildLabelMultipartResponse = ({ trackingNumber, postage, labelImage } = {}) => {
+  const boundary = "TestBoundary123";
+  const metadata = JSON.stringify({
+    ...(trackingNumber !== undefined ? { trackingNumber } : {}),
+    ...(postage !== undefined ? { postage } : {}),
+  });
+
+  const body =
+    `--${boundary}\r\n` +
+    `Content-Type: application/json\r\n` +
+    `Content-Disposition: form-data; name="labelMetadata"\r\n\r\n` +
+    `${metadata}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: application/pdf\r\n` +
+    `Content-Disposition: form-data; filename="labelImage.pdf"; name="labelImage"\r\n\r\n` +
+    `${labelImage !== undefined ? labelImage : Buffer.from("fake-usps-label-pdf").toString("base64")}\r\n` +
+    `--${boundary}--`;
+
+  return {
+    data: body,
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+  };
+};
+
 const testPackage = {
   _id: "pkg1",
   length: 12,
@@ -121,15 +147,13 @@ describe("uspsProvider.createShipment", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("returns tracking info and a decoded label buffer", async () => {
-    const labelBase64 = Buffer.from("fake-usps-label-pdf").toString("base64");
-
     mockClient((client) => {
-      client.post.mockResolvedValue({
-        data: {
-          labelMetadata: { trackingNumber: "9400100000000000000000", postage: 8.02 },
-          labelImage: labelBase64,
-        },
-      });
+      client.post.mockResolvedValue(
+        buildLabelMultipartResponse({
+          trackingNumber: "9400100000000000000000",
+          postage: 8.02,
+        }),
+      );
     });
 
     const result = await uspsProvider.createShipment({
@@ -148,9 +172,9 @@ describe("uspsProvider.createShipment", () => {
 
   it("fetches a real payment authorization token and sends it on the label request", async () => {
     const client = mockClient((c) => {
-      c.post.mockResolvedValue({
-        data: { labelMetadata: { trackingNumber: "9400100000000000000000" } },
-      });
+      c.post.mockResolvedValue(
+        buildLabelMultipartResponse({ trackingNumber: "9400100000000000000000" }),
+      );
     });
 
     await uspsProvider.createShipment({
@@ -170,9 +194,9 @@ describe("uspsProvider.createShipment", () => {
 
   it("sends consigneesName's firstName/lastName directly on toAddress", async () => {
     const client = mockClient((c) => {
-      c.post.mockResolvedValue({
-        data: { labelMetadata: { trackingNumber: "9400100000000000000000" } },
-      });
+      c.post.mockResolvedValue(
+        buildLabelMultipartResponse({ trackingNumber: "9400100000000000000000" }),
+      );
     });
 
     await uspsProvider.createShipment({
@@ -195,9 +219,9 @@ describe("uspsProvider.createShipment", () => {
 
   it("falls back to 'Customer' for a missing consigneesName", async () => {
     const client = mockClient((c) => {
-      c.post.mockResolvedValue({
-        data: { labelMetadata: { trackingNumber: "9400100000000000000000" } },
-      });
+      c.post.mockResolvedValue(
+        buildLabelMultipartResponse({ trackingNumber: "9400100000000000000000" }),
+      );
     });
 
     await uspsProvider.createShipment({

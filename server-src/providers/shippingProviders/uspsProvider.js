@@ -150,6 +150,45 @@ const getQuote = async ({ items, destination, origin, currency }) => {
 // entry needed (supportsAutoTracking: true below). Funds it via the EPS
 // account configured in config/usps.js (Trust Account or ACH Debit — same
 // API shape either way, see USPS_EPS_ACCOUNT_NUMBER's comment there).
+// The Labels API doesn't return plain JSON — it returns a multipart/form-data
+// body (a "labelMetadata" JSON part + a "labelImage" base64-PDF part), which
+// axios can't auto-parse since the Content-Type isn't application/json.
+// Confirmed live: `data` otherwise comes back as the raw multipart text.
+const parseLabelResponse = (responseData, contentType = "") => {
+  if (responseData && typeof responseData === "object") {
+    return responseData; // already parsed — future-proof if USPS ever changes this
+  }
+
+  const boundaryMatch = /boundary="?([^";]+)"?/i.exec(contentType);
+  if (typeof responseData !== "string" || !boundaryMatch) {
+    return {};
+  }
+
+  const boundary = `--${boundaryMatch[1]}`;
+  const parts = responseData.split(boundary).slice(1, -1);
+  const partsByName = {};
+
+  parts.forEach((rawPart) => {
+    const part = rawPart.replace(/^\r\n/, "").replace(/\r\n$/, "");
+    const headerEnd = part.indexOf("\r\n\r\n");
+    if (headerEnd === -1) return;
+
+    const headers = part.slice(0, headerEnd);
+    const value = part.slice(headerEnd + 4);
+    // Not just /name=".../ — that also matches inside filename="...", which
+    // every real USPS labelImage part header has.
+    const nameMatch = /(?:^|[;\s])name="([^"]+)"/i.exec(headers);
+    if (nameMatch) partsByName[nameMatch[1]] = value;
+  });
+
+  return {
+    labelMetadata: partsByName.labelMetadata
+      ? JSON.parse(partsByName.labelMetadata)
+      : null,
+    labelImage: partsByName.labelImage || null,
+  };
+};
+
 const createShipment = async ({ order, items, destination, origin }) => {
   const combined = combinePackages(items);
   const weightLbs = Math.max(
@@ -222,13 +261,13 @@ const createShipment = async ({ order, items, destination, origin }) => {
 
   console.log(`[USPS_SHIPMENT] POST /labels/${LABELS_VERSION}/label`, requestBody);
 
-  let data;
+  let response;
   try {
-    ({ data } = await client.post(`/labels/${LABELS_VERSION}/label`, requestBody, {
+    response = await client.post(`/labels/${LABELS_VERSION}/label`, requestBody, {
       headers: {
         "X-Payment-Authorization-Token": paymentAuthorizationToken,
       },
-    }));
+    });
   } catch (err) {
     console.error(
       "[USPS_SHIPMENT] request failed:",
@@ -238,7 +277,11 @@ const createShipment = async ({ order, items, destination, origin }) => {
     throw err;
   }
 
-  console.log("[USPS_SHIPMENT] response:", data);
+  const data = parseLabelResponse(response.data, response.headers?.["content-type"]);
+
+  // Logging only the metadata here — labelImage is a multi-KB base64 PDF,
+  // not worth bloating logs with.
+  console.log("[USPS_SHIPMENT] response:", data?.labelMetadata);
 
   const trackingNumber = data?.labelMetadata?.trackingNumber;
 
