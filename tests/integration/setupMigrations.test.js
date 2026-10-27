@@ -6,6 +6,7 @@
 const {
   runSetupScripts,
   backfillDefaultPackage,
+  normalizeAddressSchema,
 } = require("../../server-src/controllers/setupController");
 const { connectTestDB, disconnectTestDB, clearTestDB } = require("../setup/db");
 const { User, ROLE } = require("../../server-src/models/userModel");
@@ -14,7 +15,8 @@ const { ExportFee } = require("../../server-src/models/exportFeeModel");
 const { ShippingSettings } = require("../../server-src/models/shippingSettingsModel");
 const { Package } = require("../../server-src/models/packageModel");
 const { ShopItem } = require("../../server-src/models/shopItemModel");
-const { createShopItem, createCategory } = require("../setup/fixtures");
+const { Address } = require("../../server-src/models/addressModel");
+const { createShopItem, createCategory, createUser } = require("../setup/fixtures");
 
 const mockRes = () => {
   const res = {};
@@ -109,5 +111,111 @@ describe("backfillDefaultPackage", () => {
     await backfillDefaultPackage({ body: {} }, mockRes(), jest.fn());
 
     expect(await Package.countDocuments({ name: "Standard Box" })).toBe(1);
+  });
+});
+
+describe("normalizeAddressSchema", () => {
+  // Current Mongoose schemas/validators reject the old shape (fullAddress,
+  // full-name states) — raw inserts are the only way to genuinely simulate
+  // pre-migration data, same approach as backfillDefaultPackage's test above.
+  it("renames fullAddress to addressLine1 and converts state names to codes", async () => {
+    const user = await createUser();
+
+    const { insertedId: addressId } = await Address.collection.insertOne({
+      user: user._id,
+      city: "Austin",
+      state: "Texas",
+      country: "US",
+      fullAddress: "123 Legacy St",
+      zipCode: "78701",
+      isDefault: false,
+    });
+
+    await ShippingSettings.collection.insertOne({
+      activeProvider: "internal",
+      enabled: true,
+      autoCreateShipment: false,
+      fallbackProviders: [],
+      originAddress: {
+        country: "US",
+        state: "Texas",
+        city: "Houston",
+        fullAddress: "1 Warehouse Way",
+        zipCode: "77063",
+      },
+    });
+
+    const { insertedId: exportFeeId } = await ExportFee.collection.insertOne({
+      country: "US",
+      defaultAmount: 10,
+      defaultVat: 7.5,
+      states: [{ state: "Texas", amount: 5, vat: 6 }],
+      isActive: true,
+    });
+
+    const res = mockRes();
+    await normalizeAddressSchema({ body: {} }, res, jest.fn());
+
+    const address = await Address.findById(addressId).lean();
+    expect(address.addressLine1).toBe("123 Legacy St");
+    expect(address.fullAddress).toBeUndefined();
+    expect(address.state).toBe("TX");
+
+    const settings = await ShippingSettings.findOne().lean();
+    expect(settings.originAddress.addressLine1).toBe("1 Warehouse Way");
+    expect(settings.originAddress.fullAddress).toBeUndefined();
+    expect(settings.originAddress.state).toBe("TX");
+
+    const exportFee = await ExportFee.findById(exportFeeId).lean();
+    expect(exportFee.states[0].state).toBe("TX");
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.unmatchedStates).toHaveLength(0);
+  });
+
+  it("flags a state it can't match instead of guessing", async () => {
+    const user = await createUser();
+
+    await Address.collection.insertOne({
+      user: user._id,
+      city: "Nowhere",
+      state: "Not A Real State",
+      country: "US",
+      fullAddress: "1 Mystery Rd",
+      zipCode: "00000",
+      isDefault: false,
+    });
+
+    const res = mockRes();
+    await normalizeAddressSchema({ body: {} }, res, jest.fn());
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.unmatchedStates).toHaveLength(1);
+    expect(payload.unmatchedStates[0]).toMatchObject({
+      collection: "Address",
+      country: "US",
+      state: "Not A Real State",
+    });
+  });
+
+  it("is idempotent — running twice makes no further changes", async () => {
+    const user = await createUser();
+    const { insertedId } = await Address.collection.insertOne({
+      user: user._id,
+      city: "Austin",
+      state: "Texas",
+      country: "US",
+      fullAddress: "123 Legacy St",
+      zipCode: "78701",
+      isDefault: false,
+    });
+
+    await normalizeAddressSchema({ body: {} }, mockRes(), jest.fn());
+    await normalizeAddressSchema({ body: {} }, mockRes(), jest.fn());
+
+    const address = await Address.findById(insertedId).lean();
+    expect(address.state).toBe("TX");
+    expect(address.addressLine1).toBe("123 Legacy St");
   });
 });

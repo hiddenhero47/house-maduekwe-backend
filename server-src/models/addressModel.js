@@ -25,9 +25,13 @@ const addressSchema = mongoose.Schema(
       type: String,
       default: "",
     },
-    fullAddress: {
+    // Street line only (e.g. "742 Evergreen Terrace") — never the whole
+    // combined address. Use helpers/addressDisplayHelper.js's
+    // formatFullAddress() when a human-readable combined string is needed;
+    // never store or send one to a carrier.
+    addressLine1: {
       type: String,
-      required: [true, "Please add your full address description"],
+      required: [true, "Please add your street address"],
     },
     coordinates: {
       type: mongoose.Schema.Types.Mixed,

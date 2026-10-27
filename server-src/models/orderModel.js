@@ -84,8 +84,14 @@ const orderSchema = new mongoose.Schema(
     },
 
     consigneesName: {
-      type: String,
-      required: [true, "Please give the full name of the consignee"],
+      firstName: {
+        type: String,
+        required: [true, "Please give the consignee's first name"],
+      },
+      lastName: {
+        type: String,
+        required: [true, "Please give the consignee's last name"],
+      },
     },
 
     totalAmount: {

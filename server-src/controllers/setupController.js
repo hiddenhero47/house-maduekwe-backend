@@ -14,6 +14,13 @@ const { deleteShipmentFiles } = require("../helpers/privateFileManager");
 const { getUspsClient, USPS_MAILER_ID } = require("../config/usps");
 const { Package } = require("../models/packageModel");
 const { ShopItem } = require("../models/shopItemModel");
+const { Address } = require("../models/addressModel");
+const { ShippingSettings } = require("../models/shippingSettingsModel");
+const { ExportFee } = require("../models/exportFeeModel");
+const {
+  getStatesOfCountry,
+  isValidStateCode,
+} = require("../helpers/countryReference");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -197,9 +204,178 @@ const backfillDefaultPackage = asyncHandler(async (req, res) => {
   });
 });
 
+// Converts a stored state value to its ISO code for the given country —
+// passes through unchanged if it's already a valid code, looks it up by
+// full name (e.g. "Texas" -> "TX") otherwise. Returns matched:false rather
+// than guessing when nothing lines up, so unmatched data is visible in the
+// response instead of silently left wrong.
+const normalizeStateValue = (country, state) => {
+  if (!country || !state) return { value: state, matched: true };
+
+  if (isValidStateCode(country, state)) {
+    return { value: state.toUpperCase(), matched: true };
+  }
+
+  const match = getStatesOfCountry(country).find(
+    (s) => s.name.toLowerCase() === String(state).trim().toLowerCase(),
+  );
+
+  return match
+    ? { value: match.isoCode, matched: true }
+    : { value: state, matched: false };
+};
+
+// @desc    Normalize existing Address/ShippingSettings/ExportFee documents
+//          to the new address schema: rename fullAddress -> addressLine1,
+//          convert state full-names to ISO codes. Operates on the raw
+//          collections (not the Mongoose models) so it can both read a
+//          field (fullAddress) that no longer exists in the current schema
+//          and $unset it afterward — Model.updateMany() silently drops
+//          $unset for fields outside the schema unless {strict:false},
+//          the same gotcha migrateTaxAndVatFields hit before (see
+//          tests/README.md); going through .collection sidesteps it
+//          entirely.
+// @route   POST /api/setup/normalize-address-schema
+// @access  Private/Admin (time-window guarded, see setupRoutes)
+const normalizeAddressSchema = asyncHandler(async (req, res) => {
+  const logs = [];
+  const unmatchedStates = [];
+
+  // --- Address ---
+  const addresses = await Address.collection.find({}).toArray();
+  let addressesUpdated = 0;
+
+  for (const doc of addresses) {
+    const set = {};
+    const unset = {};
+
+    if (doc.fullAddress !== undefined && doc.addressLine1 === undefined) {
+      set.addressLine1 = doc.fullAddress;
+      unset.fullAddress = "";
+    }
+
+    if (doc.state) {
+      const { value, matched } = normalizeStateValue(doc.country, doc.state);
+      if (value !== doc.state) set.state = value;
+      if (!matched) {
+        unmatchedStates.push({
+          collection: "Address",
+          id: doc._id,
+          country: doc.country,
+          state: doc.state,
+        });
+      }
+    }
+
+    if (Object.keys(set).length || Object.keys(unset).length) {
+      const update = {};
+      if (Object.keys(set).length) update.$set = set;
+      if (Object.keys(unset).length) update.$unset = unset;
+      await Address.collection.updateOne({ _id: doc._id }, update);
+      addressesUpdated += 1;
+    }
+  }
+
+  logs.push({
+    task: "Normalize Address documents",
+    status: "success",
+    message: `${addresses.length} checked, ${addressesUpdated} updated`,
+  });
+
+  // --- ShippingSettings.originAddress ---
+  const settingsDocs = await ShippingSettings.collection.find({}).toArray();
+  let settingsUpdated = 0;
+
+  for (const doc of settingsDocs) {
+    const origin = doc.originAddress;
+    if (!origin) continue;
+
+    const set = {};
+    const unset = {};
+
+    if (origin.fullAddress !== undefined && origin.addressLine1 === undefined) {
+      set["originAddress.addressLine1"] = origin.fullAddress;
+      unset["originAddress.fullAddress"] = "";
+    }
+
+    if (origin.state) {
+      const { value, matched } = normalizeStateValue(origin.country, origin.state);
+      if (value !== origin.state) set["originAddress.state"] = value;
+      if (!matched) {
+        unmatchedStates.push({
+          collection: "ShippingSettings",
+          id: doc._id,
+          country: origin.country,
+          state: origin.state,
+        });
+      }
+    }
+
+    if (Object.keys(set).length || Object.keys(unset).length) {
+      const update = {};
+      if (Object.keys(set).length) update.$set = set;
+      if (Object.keys(unset).length) update.$unset = unset;
+      await ShippingSettings.collection.updateOne({ _id: doc._id }, update);
+      settingsUpdated += 1;
+    }
+  }
+
+  logs.push({
+    task: "Normalize ShippingSettings.originAddress",
+    status: "success",
+    message: `${settingsDocs.length} checked, ${settingsUpdated} updated`,
+  });
+
+  // --- ExportFee.states[].state ---
+  const exportFees = await ExportFee.collection.find({}).toArray();
+  let exportFeesUpdated = 0;
+
+  for (const doc of exportFees) {
+    if (!Array.isArray(doc.states) || doc.states.length === 0) continue;
+
+    let changed = false;
+    const newStates = doc.states.map((s) => {
+      const { value, matched } = normalizeStateValue(doc.country, s.state);
+      if (!matched) {
+        unmatchedStates.push({
+          collection: "ExportFee",
+          id: doc._id,
+          country: doc.country,
+          state: s.state,
+        });
+      }
+      if (value !== s.state) changed = true;
+      return { ...s, state: value };
+    });
+
+    if (changed) {
+      await ExportFee.collection.updateOne(
+        { _id: doc._id },
+        { $set: { states: newStates } },
+      );
+      exportFeesUpdated += 1;
+    }
+  }
+
+  logs.push({
+    task: "Normalize ExportFee.states",
+    status: "success",
+    message: `${exportFees.length} checked, ${exportFeesUpdated} updated`,
+  });
+
+  res.json({
+    success: true,
+    results: logs,
+    // Anything here couldn't be matched to a real state code — worth a
+    // manual look rather than guessing further.
+    unmatchedStates,
+  });
+});
+
 module.exports = {
   runSetupScripts,
   clearOrdersPaymentsAndShipments,
   registerUspsWebhook,
   backfillDefaultPackage,
+  normalizeAddressSchema,
 };

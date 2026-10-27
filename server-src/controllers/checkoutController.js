@@ -1066,7 +1066,7 @@ const resolveShippingQuote = async ({
     state: address.state,
     city: address.city,
     zipCode: address.zipCode,
-    fullAddress: address.fullAddress,
+    addressLine1: address.addressLine1,
   };
 
   const candidateProviders = [

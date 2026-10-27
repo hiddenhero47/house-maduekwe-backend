@@ -47,7 +47,7 @@ const shippingSettingsSchema = new mongoose.Schema(
       country: { type: String, trim: true },
       state: { type: String, trim: true },
       city: { type: String, trim: true },
-      fullAddress: { type: String, trim: true },
+      addressLine1: { type: String, trim: true },
       zipCode: { type: String, trim: true, default: "" },
     },
 

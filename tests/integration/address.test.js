@@ -1,12 +1,24 @@
 const request = require("supertest");
 const createApp = require("../../server-src/app");
 const { connectTestDB, disconnectTestDB, clearTestDB } = require("../setup/db");
-const { createUser, generateToken, createAddress } = require("../setup/fixtures");
+const {
+  createUser,
+  generateToken,
+  createAddress,
+  createExportFee,
+} = require("../setup/fixtures");
 
 const app = createApp();
 
 beforeAll(async () => {
   await connectTestDB();
+});
+
+// Every address here uses country "US" — the countryCodeValidation Yup
+// test requires an active ExportFee row for a country before an address
+// can be created for it.
+beforeEach(async () => {
+  await createExportFee({ country: "US" });
 });
 
 afterEach(async () => {
@@ -19,9 +31,9 @@ afterAll(async () => {
 
 const validAddressBody = (overrides = {}) => ({
   city: "Austin",
-  state: "Texas",
+  state: "TX",
   country: "US",
-  fullAddress: "123 Test St",
+  addressLine1: "123 Test St",
   zipCode: "78701",
   ...overrides,
 });

@@ -1,11 +1,21 @@
 const mongoose = require("mongoose");
+const { isValidStateCode } = require("../helpers/countryReference");
 
 const stateFeeSchema = new mongoose.Schema({
   state: {
     type: String,
     required: true,
-    lowercase: true,
+    uppercase: true,
     trim: true,
+    // Sibling-aware — this.parent() is the owning ExportFee document, so a
+    // state is checked against the country it actually belongs to on this
+    // same document.
+    validate: {
+      validator: function (value) {
+        return isValidStateCode(this.parent()?.country, value);
+      },
+      message: "Not a recognized state/province for this document's country",
+    },
   },
   amount: {
     type: Number,

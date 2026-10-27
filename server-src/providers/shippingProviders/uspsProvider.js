@@ -5,7 +5,6 @@ const {
   USPS_EPS_ACCOUNT_NUMBER,
 } = require("../../config/usps");
 const { combinePackages } = require("../../helpers/packageDimensionsHelper");
-const { toStateCode } = require("../../helpers/usStateHelper");
 
 // USPS's OAuth2 "USPS APIs" platform request/response shapes below follow
 // their published Developer Portal structure as of this writing — no live
@@ -38,20 +37,6 @@ const sumWeightLbs = (items = []) =>
     (total, item) => total + ((item.weightGrams || 0) / 1000) * LB_PER_KG,
     0,
   );
-
-// USPS requires firstName + lastName (or a firm name) on both addresses —
-// this system only stores a single full-name string, so splitting it is a
-// stopgap until real firstName/lastName fields exist. A single-word name
-// (no space) is used for both, since USPS requires both to be non-empty.
-const splitFullName = (fullName, fallback = "Customer") => {
-  const trimmed = (fullName || "").trim() || fallback;
-  const parts = trimmed.split(/\s+/);
-
-  return {
-    firstName: parts[0],
-    lastName: parts.length > 1 ? parts.slice(1).join(" ") : parts[0],
-  };
-};
 
 const buildLabel = (labelImageBase64, format = LABEL_FORMAT) => {
   if (!labelImageBase64) return null;
@@ -203,17 +188,19 @@ const createShipment = async ({ order, items, destination, origin }) => {
       receiptOption: "NONE",
     },
     toAddress: {
-      ...splitFullName(order.consigneesName),
-      streetAddress: destination.fullAddress,
+      firstName: order.consigneesName?.firstName || "Customer",
+      lastName: order.consigneesName?.lastName || "Customer",
+      streetAddress: destination.addressLine1,
       city: destination.city,
-      state: toStateCode(destination.state),
+      state: destination.state,
       ZIPCode: destination.zipCode,
     },
     fromAddress: {
-      ...splitFullName("House Maduekwe"),
-      streetAddress: origin.fullAddress,
+      firstName: "House",
+      lastName: "Maduekwe",
+      streetAddress: origin.addressLine1,
       city: origin.city,
-      state: toStateCode(origin.state),
+      state: origin.state,
       ZIPCode: origin.zipCode,
     },
     packageDescription: {
