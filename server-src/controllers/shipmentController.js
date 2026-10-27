@@ -221,7 +221,7 @@ const getAllShipments = asyncHandler(async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate("order", "consigneesName status totalAmount currency")
+      .populate("order", "consigneesName status totalAmount currency shippedBy")
       .lean(),
 
     Shipment.countDocuments(filter),
