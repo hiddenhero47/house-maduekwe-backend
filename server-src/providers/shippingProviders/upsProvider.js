@@ -1,7 +1,6 @@
 const crypto = require("crypto");
 const { getUpsClient, UPS_ACCOUNT_NUMBER } = require("../../config/ups");
 const { combinePackages } = require("../../helpers/packageDimensionsHelper");
-const { toStateCode } = require("../../helpers/usStateHelper");
 
 // UPS's JSON Rating/Shipping/Tracking/Label-Recovery request & response
 // shapes below follow their published Developer Portal structure as of this
@@ -30,9 +29,9 @@ const sumWeightKg = (items = []) =>
   items.reduce((total, item) => total + (item.weightGrams || 0) / 1000, 0);
 
 const buildAddress = (address = {}) => ({
-  AddressLine: [address.fullAddress].filter(Boolean),
+  AddressLine: [address.addressLine1].filter(Boolean),
   City: address.city,
-  StateProvinceCode: toStateCode(address.state),
+  StateProvinceCode: address.state,
   PostalCode: address.zipCode,
   CountryCode: address.country,
 });
@@ -160,7 +159,9 @@ const createShipment = async ({ order, items, destination, origin }) => {
           },
           ShipFrom: { Name: "House Maduekwe", Address: buildAddress(origin) },
           ShipTo: {
-            Name: order.consigneesName || "Customer",
+            Name:
+              `${order.consigneesName?.firstName || ""} ${order.consigneesName?.lastName || ""}`.trim() ||
+              "Customer",
             Address: buildAddress(destination),
           },
           PaymentInformation: {

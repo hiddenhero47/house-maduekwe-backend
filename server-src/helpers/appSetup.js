@@ -45,7 +45,7 @@ const ensureStripePaymentProvider = async () => {
 const ensureUSExportFee = async () => {
   try {
     const countryCode = "US";
-    const texasState = "Texas";
+    const texasState = "TX";
     const defaultVatRate = 0; // TODO: set the real default VAT/sales-tax rate for this country
 
     let exportFee = await ExportFee.findOne({ country: countryCode });

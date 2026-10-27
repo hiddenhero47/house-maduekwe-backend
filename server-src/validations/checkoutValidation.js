@@ -1,6 +1,24 @@
 const yup = require("yup");
+const { countryCodeValidation, stateCodeValidation } = require("./addressFields");
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
+
+const consigneesNameValidation = yup
+  .object({
+    firstName: yup
+      .string()
+      .trim()
+      .min(1, "First name is too short")
+      .max(50, "First name is too long")
+      .required("First name is required"),
+    lastName: yup
+      .string()
+      .trim()
+      .min(1, "Last name is too short")
+      .max(50, "Last name is too long")
+      .required("Last name is required"),
+  })
+  .required("Please provide the consignee's name");
 
 const checkoutValidationSchema = yup.object({
   itemList: yup
@@ -9,12 +27,7 @@ const checkoutValidationSchema = yup.object({
     .min(1, "At least one item is required")
     .required("Item list is required"),
 
-  consigneesName: yup
-    .string()
-    .trim()
-    .min(2, "Consignee name is too short")
-    .max(100, "Consignee name is too long")
-    .required("Please provide the full name of the consignee"),
+  consigneesName: consigneesNameValidation,
 
   selectedAddress: yup
     .string()
@@ -88,12 +101,7 @@ const guestCheckoutValidationSchema = yup.object({
     .min(1, "At least one item is required")
     .required("Item list is required"),
 
-  consigneesName: yup
-    .string()
-    .trim()
-    .min(2, "Consignee name is too short")
-    .max(100, "Consignee name is too long")
-    .required("Please provide the full name of the consignee"),
+  consigneesName: consigneesNameValidation,
 
   email: yup
     .string()
@@ -121,10 +129,10 @@ const guestCheckoutValidationSchema = yup.object({
 
   address: yup
     .object({
-      country: yup.string().trim().required("Country is required"),
-      state: yup.string().trim().required("State is required"),
+      country: countryCodeValidation("Country is required"),
+      state: stateCodeValidation("State is required"),
       city: yup.string().trim().required("City is required"),
-      fullAddress: yup.string().trim().required("Full address is required"),
+      addressLine1: yup.string().trim().required("Address line 1 is required"),
       zipCode: yup.string().trim().default(""),
       addressLine2: yup.string().trim().default(""),
     })

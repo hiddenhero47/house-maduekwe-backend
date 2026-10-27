@@ -31,7 +31,7 @@ const buildCheckoutHash = ({ items, address, provider }) => {
       state: address?.state || null,
       city: address?.city || null,
       zipCode: address?.zipCode || null,
-      fullAddress: address?.fullAddress || null,
+      addressLine1: address?.addressLine1 || null,
     },
     provider,
   };

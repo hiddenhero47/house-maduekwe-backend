@@ -2,6 +2,7 @@ const yup = require("yup");
 const {
   ENABLED_SHIPPING_PROVIDERS,
 } = require("../models/shippingSettingsModel");
+const { countryCodeValidation, stateCodeValidation } = require("./addressFields");
 
 const shippingSettingsValidationSchema = yup.object({
   activeProvider: yup
@@ -27,13 +28,13 @@ const shippingSettingsValidationSchema = yup.object({
   // required() fields on requests that don't touch originAddress at all.
   originAddress: yup
     .object({
-      country: yup.string().trim().required("Origin country is required"),
-      state: yup.string().trim().required("Origin state is required"),
+      country: countryCodeValidation("Origin country is required"),
+      state: stateCodeValidation("Origin state is required"),
       city: yup.string().trim().required("Origin city is required"),
-      fullAddress: yup
+      addressLine1: yup
         .string()
         .trim()
-        .required("Origin full address is required"),
+        .required("Origin address line 1 is required"),
       zipCode: yup.string().trim().default(""),
     })
     .default(undefined)

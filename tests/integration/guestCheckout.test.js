@@ -34,13 +34,13 @@ const setupGuestFixtures = async () => {
 
 const guestBody = (shopItem, overrides = {}) => ({
   itemList: [{ shopItem: shopItem._id.toString(), quantity: 3, selectedAttributes: [] }],
-  consigneesName: "Guest Buyer",
+  consigneesName: { firstName: "Guest", lastName: "Buyer" },
   email: "guest@example.com",
   address: {
     country: "NG",
-    state: "Lagos",
+    state: "LA",
     city: "Ikeja",
-    fullAddress: "10 Guest Ave",
+    addressLine1: "10 Guest Ave",
   },
   ...overrides,
 });

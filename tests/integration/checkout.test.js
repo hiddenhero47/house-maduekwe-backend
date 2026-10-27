@@ -46,10 +46,10 @@ const setupCheckoutFixtures = async () => {
     country: "US",
     defaultAmount: 15,
     defaultVat: 8,
-    states: [{ state: "texas", amount: 5, vat: 6 }],
+    states: [{ state: "TX", amount: 5, vat: 6 }],
   });
 
-  const address = await createAddress({ user, country: "US", state: "Texas" });
+  const address = await createAddress({ user, country: "US", state: "TX" });
   const cart = await createCart({
     user,
     itemList: [{ shopItem: shopItem._id, quantity: 2 }],
@@ -97,7 +97,7 @@ describe("POST /api/orders/confirm-checkout", () => {
       defaultVat: 8,
     });
 
-    const address = await createAddress({ user, country: "US", state: "Texas" });
+    const address = await createAddress({ user, country: "US", state: "TX" });
     const cart = await createCart({
       user,
       itemList: [{ shopItem: shopItem._id, quantity: 1 }],
@@ -127,7 +127,7 @@ describe("POST /api/orders/confirm-checkout", () => {
 
   it("falls back to the country default when the address state has no override", async () => {
     const { token, cartItemId, user } = await setupCheckoutFixtures();
-    const address = await createAddress({ user, country: "US", state: "California" });
+    const address = await createAddress({ user, country: "US", state: "CA" });
 
     const res = await request(app)
       .post("/api/orders/confirm-checkout")
@@ -209,7 +209,7 @@ describe("POST /api/orders/checkout", () => {
       .send({
         itemList: [cartItemId],
         selectedAddress: address._id.toString(),
-        consigneesName: "Jane Doe",
+        consigneesName: { firstName: "Jane", lastName: "Doe" },
         checkoutToken: confirmRes.body.checkoutToken,
       });
 
@@ -227,7 +227,7 @@ describe("POST /api/orders/checkout", () => {
       .send({
         itemList: [cartItemId],
         selectedAddress: address._id.toString(),
-        consigneesName: "Jane Doe",
+        consigneesName: { firstName: "Jane", lastName: "Doe" },
       });
 
     expect(res.status).toBe(201);
@@ -258,7 +258,7 @@ describe("POST /api/orders/checkout", () => {
       .send({
         itemList: [cartItemId],
         selectedAddress: address._id.toString(),
-        consigneesName: "Jane Doe",
+        consigneesName: { firstName: "Jane", lastName: "Doe" },
         checkoutToken: confirmRes.body.checkoutToken,
       });
 
@@ -274,7 +274,7 @@ describe("POST /api/orders/checkout", () => {
       .send({
         itemList: [cartItemId],
         selectedAddress: address._id.toString(),
-        consigneesName: "Jane Doe",
+        consigneesName: { firstName: "Jane", lastName: "Doe" },
       });
     expect(first.status).toBe(201);
 
@@ -290,7 +290,7 @@ describe("POST /api/orders/checkout", () => {
       .send({
         itemList: [secondCartItemId],
         selectedAddress: address._id.toString(),
-        consigneesName: "Jane Doe",
+        consigneesName: { firstName: "Jane", lastName: "Doe" },
       });
 
     expect(second.status).toBe(400);
