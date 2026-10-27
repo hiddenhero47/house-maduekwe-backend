@@ -106,8 +106,6 @@ const getPaymentAuthorizationToken = async () => {
     ],
   };
 
-  console.log("[USPS_PAYMENT_AUTH] POST /payments/v3/payment-authorization", requestBody);
-
   let data;
   try {
     ({ data } = await client.post(
@@ -122,13 +120,6 @@ const getPaymentAuthorizationToken = async () => {
     );
     throw err;
   }
-
-  // Not logging the full response — paymentAuthorizationToken is a live
-  // 8-hour bearer token good for drawing against the EPS account.
-  console.log(
-    "[USPS_PAYMENT_AUTH] response received, roles:",
-    data?.roles?.map((r) => r.roleName),
-  );
 
   if (!data?.paymentAuthorizationToken) {
     throw new Error("USPS did not return a payment authorization token");

@@ -105,11 +105,6 @@ const getQuote = async ({ items, destination, origin, currency }) => {
     mailingDate: new Date().toISOString().slice(0, 10),
   };
 
-  console.log(
-    `[USPS_QUOTE] POST /prices/${PRICES_VERSION}/base-rates/search`,
-    requestBody,
-  );
-
   try {
     const client = await getUspsClient();
 
@@ -118,10 +113,7 @@ const getQuote = async ({ items, destination, origin, currency }) => {
       requestBody,
     );
 
-    console.log("[USPS_QUOTE] response:", data);
-
     if (!data?.totalBasePrice) {
-      console.log("[USPS_QUOTE] no totalBasePrice in response — returning null");
       return null; // no serviceable rate for this destination
     }
 
@@ -259,8 +251,6 @@ const createShipment = async ({ order, items, destination, origin }) => {
     mailerId: USPS_MAILER_ID,
   };
 
-  console.log(`[USPS_SHIPMENT] POST /labels/${LABELS_VERSION}/label`, requestBody);
-
   let response;
   try {
     response = await client.post(`/labels/${LABELS_VERSION}/label`, requestBody, {
@@ -278,10 +268,6 @@ const createShipment = async ({ order, items, destination, origin }) => {
   }
 
   const data = parseLabelResponse(response.data, response.headers?.["content-type"]);
-
-  // Logging only the metadata here — labelImage is a multi-KB base64 PDF,
-  // not worth bloating logs with.
-  console.log("[USPS_SHIPMENT] response:", data?.labelMetadata);
 
   const trackingNumber = data?.labelMetadata?.trackingNumber;
 
