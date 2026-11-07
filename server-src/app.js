@@ -28,7 +28,15 @@ const createApp = () => {
     "/api/shipments/usps/webhook",
     express.raw({ type: "application/json" }),
   );
-  const forms = multer();
+  // Explicit, generous bulk-upload headroom — a whole shoot's worth of
+  // images (e.g. a full Roots/Resist/Son & Soil batch) in one request —
+  // rather than relying on multer's unbounded defaults.
+  const forms = multer({
+    limits: {
+      fileSize: 12 * 1024 * 1024, // 12MB per file
+      files: 40, // files per request
+    },
+  });
   app.use(express.json({ limit: "10mb" }));
   app.use(forms.any());
   app.use(express.urlencoded({ extended: false, limit: "10mb" }));

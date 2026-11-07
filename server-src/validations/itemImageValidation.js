@@ -1,6 +1,7 @@
 const yup = require("yup");
 
-const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+// Matches the multer `fileSize` limit in app.js — keep these two in sync.
+const MAX_SIZE = 12 * 1024 * 1024; // 12MB
 
 const validateFiles = async (req) => {
   // Helper: validate uploaded file objects (from multer)
@@ -11,7 +12,7 @@ const validateFiles = async (req) => {
       .required("File type is required"),
     size: yup
       .number()
-      .max(MAX_SIZE, "File size must be under 2MB")
+      .max(MAX_SIZE, "File size must be under 12MB")
       .required("File size is required"),
     originalname: yup.string().required("File name is required"),
   });
@@ -44,7 +45,7 @@ const validateFiles = async (req) => {
         /^data:image\/(jpeg|png|webp);base64,/,
         "Invalid base64 image format"
       )
-      .test("base64-size", "Base64 image must be under 2MB", (str) => {
+      .test("base64-size", "Base64 image must be under 12MB", (str) => {
         const sizeInBytes =
           (str.length * 3) / 4 -
           (str.endsWith("==") ? 2 : str.endsWith("=") ? 1 : 0);
