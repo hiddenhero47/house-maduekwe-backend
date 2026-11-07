@@ -14,6 +14,19 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
+  // Multer throws on exceeding app.js's forms() limits (fileSize/files) —
+  // a clear 413 instead of the generic "something broke" 500.
+  if (err.name === "MulterError") {
+    const message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "One of the files you uploaded is too large (max 12MB each)"
+        : err.code === "LIMIT_FILE_COUNT"
+          ? "Too many files in one upload (max 40 at a time)"
+          : err.message;
+
+    return res.status(413).json({ message, code: err.code });
+  }
+
   res.status(statusCode).json({
     message: err.message,
     code: err.code,
