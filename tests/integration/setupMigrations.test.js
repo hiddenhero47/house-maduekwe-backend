@@ -7,6 +7,7 @@ const {
   runSetupScripts,
   backfillDefaultPackage,
   normalizeAddressSchema,
+  wipeProductImages,
 } = require("../../server-src/controllers/setupController");
 const { connectTestDB, disconnectTestDB, clearTestDB } = require("../setup/db");
 const { User, ROLE } = require("../../server-src/models/userModel");
@@ -217,5 +218,39 @@ describe("normalizeAddressSchema", () => {
     const address = await Address.findById(insertedId).lean();
     expect(address.state).toBe("TX");
     expect(address.addressLine1).toBe("123 Legacy St");
+  });
+});
+
+describe("wipeProductImages", () => {
+  it("clears imageCatalog and attributes[].images, deleting files on disk", async () => {
+    const item = await createShopItem();
+    // attributes[].images no longer exists in the live schema — raw insert
+    // to simulate pre-migration legacy data, same approach used elsewhere
+    // in this file.
+    await ShopItem.collection.updateOne(
+      { _id: item._id },
+      {
+        $set: {
+          attributes: [
+            {
+              Attribute: new (require("mongoose").Types.ObjectId)(),
+              type: "color",
+              images: [{ id: "legacy", path: "/tmp/not-a-real-legacy.jpg" }],
+            },
+          ],
+        },
+      },
+    );
+
+    const res = mockRes();
+    await wipeProductImages({ body: {} }, res, jest.fn());
+
+    const updated = await ShopItem.collection.findOne({ _id: item._id });
+    expect(updated.imageCatalog).toEqual([]);
+    expect(updated.attributes[0].images).toBeUndefined();
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.totalFilesDeleted).toBeGreaterThanOrEqual(1);
   });
 });

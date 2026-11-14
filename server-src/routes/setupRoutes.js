@@ -6,6 +6,7 @@ const {
   registerUspsWebhook,
   backfillDefaultPackage,
   normalizeAddressSchema,
+  wipeProductImages,
 } = require("../controllers/setupController");
 const { timeWindowGuard } = require("../middleware/timeMiddleware");
 const { protect, secureRole } = require("../middleware/authMiddleware");
@@ -40,6 +41,12 @@ router.post(
   "/normalize-address-schema",
   timeWindowGuard("2026-10-27T00:00:00Z", 24),
   normalizeAddressSchema,
+);
+
+router.post(
+  "/wipe-product-images",
+  timeWindowGuard("2026-11-14T00:00:00Z", 48),
+  wipeProductImages,
 );
 
 module.exports = router;
