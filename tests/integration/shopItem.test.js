@@ -243,7 +243,7 @@ describe("GET /api/shop-items/:id", () => {
 });
 
 describe("PUT /api/shop-items/:id", () => {
-  it("updates fields and can add another image", async () => {
+  it("updates fields but never touches imageCatalog — images are owned by /images routes now", async () => {
     const admin = await createAdmin();
     const token = generateToken(admin);
     const category = await createCategory();
@@ -254,9 +254,12 @@ describe("PUT /api/shop-items/:id", () => {
       baseItemData({ category: category._id.toString(), package: pkg._id.toString() }),
     );
     trackUploads(created.body.data?.imageCatalog);
+    const originalCatalogLength = created.body.data.imageCatalog.length;
 
     // shopItemValidationSchema requires the full payload on update too —
     // there's no partial-update variant, same convention as ExportFee.
+    // Attaching another file here should be silently ignored — PUT no
+    // longer uploads/removes images.
     const res = await putShopItem(
       token,
       created.body.data._id,
@@ -266,11 +269,10 @@ describe("PUT /api/shop-items/:id", () => {
         price: 75,
       }),
     );
-    trackUploads(res.body.data?.imageCatalog);
 
     expect(res.status).toBe(200);
     expect(res.body.data.price).toBe(75);
-    expect(res.body.data.imageCatalog).toHaveLength(2);
+    expect(res.body.data.imageCatalog).toHaveLength(originalCatalogLength);
   });
 });
 
