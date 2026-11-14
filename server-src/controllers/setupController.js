@@ -21,6 +21,7 @@ const {
   getStatesOfCountry,
   isValidStateCode,
 } = require("../helpers/countryReference");
+const { deleteFile } = require("../helpers/fileManager");
 
 // @desc    Start up app
 // @route   POST /api/setup/get-started
@@ -372,10 +373,50 @@ const normalizeAddressSchema = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Wipe every ShopItem's imageCatalog and attributes[].images —
+//          one-off reset for the imageCatalog/attrTag refactor so the few
+//          existing products can be re-populated through the new image
+//          routes. Deletes the physical files too, not just the DB refs.
+//          Goes through .collection (not the Model) since
+//          attributes[].images no longer exists in the live schema and
+//          $unset-ing it needs {strict:false} semantics — same reasoning
+//          as normalizeAddressSchema above.
+// @route   POST /api/setup/wipe-product-images
+// @access  Private/Admin (time-window guarded, see setupRoutes)
+const wipeProductImages = asyncHandler(async (req, res) => {
+  const docs = await ShopItem.collection.find({}).toArray();
+  const results = [];
+  let totalFilesDeleted = 0;
+
+  for (const doc of docs) {
+    const paths = [
+      ...(doc.imageCatalog || []).map((img) => img.path),
+      ...(doc.attributes || []).flatMap((a) => (a.images || []).map((img) => img.path)),
+    ].filter(Boolean);
+
+    await Promise.all(paths.map((p) => deleteFile(p)));
+
+    await ShopItem.collection.updateOne(
+      { _id: doc._id },
+      { $set: { imageCatalog: [] }, $unset: { "attributes.$[].images": "" } },
+    );
+
+    results.push({ itemId: doc._id, filesDeleted: paths.length });
+    totalFilesDeleted += paths.length;
+  }
+
+  res.json({
+    success: true,
+    results,
+    totalFilesDeleted,
+  });
+});
+
 module.exports = {
   runSetupScripts,
   clearOrdersPaymentsAndShipments,
   registerUspsWebhook,
   backfillDefaultPackage,
   normalizeAddressSchema,
+  wipeProductImages,
 };

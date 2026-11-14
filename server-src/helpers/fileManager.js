@@ -3,6 +3,7 @@ const path = require("path");
 const crypto = require("crypto");
 const uuidv4 = () => crypto.randomUUID();
 const axios = require("axios");
+const sharp = require("sharp");
 async function FileType(buffer) {
   const { fileTypeFromBuffer } = await import("file-type");
   return await fileTypeFromBuffer(buffer);
@@ -61,16 +62,36 @@ function isValidFileName(fileName) {
 }
 
 /**
- * 💾 Save buffer to disk
+ * 💾 Save buffer to disk — still-image uploads are auto-resized and
+ * re-encoded as JPEG so nothing needs manual pre-compression before upload.
  */
 async function saveBuffer(buffer, originalName, mime) {
-  const info = generateFileInfo(originalName, mime);
+  let outBuffer = buffer;
+  let outMime = mime;
+  let nameForInfo = originalName;
+
+  if (mime.startsWith("image/") && mime !== "image/gif") {
+    outBuffer = await sharp(buffer)
+      .rotate()
+      .resize({
+        width: 2000,
+        height: 2000,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 82 })
+      .toBuffer();
+    outMime = "image/jpeg";
+    nameForInfo = `${path.basename(originalName, path.extname(originalName))}.jpg`;
+  }
+
+  const info = generateFileInfo(nameForInfo, outMime);
 
   if (!isValidFileName(info.fileName)) {
     throw new Error("Invalid system file blocked");
   }
-  
-  await fs.promises.writeFile(info.path, buffer);
+
+  await fs.promises.writeFile(info.path, outBuffer);
   return info;
 }
 

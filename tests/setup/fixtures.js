@@ -78,7 +78,15 @@ const createShopItem = async (overrides = {}) => {
     weight: { value: 0.2, unit: "kg" },
     currency: "USD",
     quantity: 100,
-    imageCatalog: ["https://example.com/image.jpg"],
+    imageCatalog: [
+      {
+        id: `fixture-image-${next()}`,
+        fileName: "fixture.jpg",
+        path: "/tmp/fixture.jpg",
+        url: "https://example.com/image.jpg",
+        mime: "image/jpeg",
+      },
+    ],
     ...overrides,
     category,
     package: pkg,

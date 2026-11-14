@@ -1,7 +1,9 @@
 const asyncHandler = require("express-async-handler");
-const { ShopItem } = require("../models/shopItemModel");
+const { ShopItem, MAX_IMAGE_CATALOG } = require("../models/shopItemModel");
 const {
   shopItemValidationSchema,
+  imageReorderSchema,
+  imageTagSchema,
 } = require("../validations/shopItemValidation");
 const fileValidationSchema = require("../validations/itemImageValidation");
 const { uploadHandler, deleteFile } = require("../helpers/fileManager");
@@ -10,6 +12,7 @@ const {
   normalizeData,
   parseClassTagsFilter,
   sanitizeAttributes,
+  sanitizeImageCatalogTags,
   mergeUnique,
 } = require("../helpers/shopItemHelper");
 const mongoose = require("mongoose");
@@ -17,6 +20,12 @@ const ItemGroup = require("../models/itemGroupModel");
 const { toPublicShopItem } = require("../helpers/shopItemResponseBuilder");
 
 const PACKAGE_POPULATE_FIELDS = "name length width height weight";
+
+const POPULATE_CHAIN = [
+  { path: "category", select: "name" },
+  { path: "package", select: PACKAGE_POPULATE_FIELDS },
+  { path: "attributes.Attribute", select: "name value type display" },
+];
 
 // @desc   Public Get Items (with filters + pagination)
 // @route  GET /api/shop-items
@@ -192,6 +201,12 @@ const createShopItem = asyncHandler(async (req, res) => {
     throw new Error(fileData.errorLogs);
   }
 
+  if (imageCatalog.length > MAX_IMAGE_CATALOG) {
+    await Promise.all(imageCatalog.map((img) => deleteFile(img.path)));
+    res.status(400);
+    throw new Error(`A product can have at most ${MAX_IMAGE_CATALOG} images`);
+  }
+
   // ✅ Construct item object
   const newItem = {
     ...itemData,
@@ -230,68 +245,37 @@ const updateShopItem = asyncHandler(async (req, res) => {
   }
 
   const parsedData = parseMultipartData(req);
-  const { base64, url, removeImages, ...itemData } = normalizeData(parsedData);
+  // Images are owned by the dedicated /images routes now — base64/url/
+  // removeImages/imageCatalog from the old bundled-upload flow are ignored
+  // here, never applied to the product.
+  const { base64, url, removeImages, imageCatalog: _ignored, ...itemData } =
+    normalizeData(parsedData);
   await shopItemValidationSchema.validate(itemData, { abortEarly: false });
 
-  let imageCatalog = [...item.imageCatalog];
-  const imageLogs = [];
-
-  // ✅ Handle image removal
-  if (Array.isArray(removeImages) && removeImages.length > 0) {
-    const removePaths = removeImages.map((r) => r.path);
-    imageCatalog = imageCatalog.filter(
-      (img) => !removePaths.includes(img.path),
-    );
-
-    for (const path of removePaths) {
-      try {
-        await deleteFile(path);
-      } catch (err) {
-        console.error(`⚠️ Failed to delete ${path}:`, err.message);
-        imageLogs.push(`Failed to delete ${path}`);
-      }
-    }
-  }
-
-  // ✅ Handle new image uploads
-  if (req.files || base64 || url) {
-    // 🔧 Same sync as createShopItem — base64/url come from the parsed
-    // "data" JSON field, but uploadHandler reads req.body.base64/url.
-    if (base64 !== undefined) req.body.base64 = base64;
-    if (url !== undefined) req.body.url = url;
-
-    const fileData = await uploadHandler({
-      req,
-      schema: fileValidationSchema,
-      allowedTypes: ["image/jpeg", "image/png"],
-    });
-
-    if (fileData?.results?.length > 0) {
-      imageCatalog.push(...fileData.results);
-    }
-    if (fileData?.errorLogs?.length > 0) {
-      imageLogs.push(...fileData.errorLogs);
-    }
-  }
-
   let sanitizedAttributes = itemData.attributes;
+  const updatePayload = { ...itemData };
 
   // Only run if attributes are being updated
   if (Array.isArray(itemData.attributes)) {
-    sanitizedAttributes = await sanitizeAttributes(
-      itemData.attributes,
-      removeImages,
-    );
+    sanitizedAttributes = await sanitizeAttributes(itemData.attributes);
+    updatePayload.attributes = sanitizedAttributes;
+
+    const survivingIds = sanitizedAttributes.map((a) => a.Attribute);
+    const previousIds = item.attributes.map((a) => a.Attribute);
+    const changed =
+      survivingIds.length !== previousIds.length ||
+      survivingIds.some((id) => !previousIds.some((p) => String(p) === String(id)));
+
+    if (changed) {
+      updatePayload.imageCatalog = sanitizeImageCatalogTags(
+        item.imageCatalog,
+        survivingIds,
+      );
+    }
   }
 
-  // Sanitize
-  const updatePayload = {
-    ...itemData,
-    imageCatalog,
-    attributes: sanitizedAttributes,
-  };
   Object.keys(updatePayload).forEach((key) => {
-    if (key !== "imageCatalog" && updatePayload[key] === undefined) {
+    if (updatePayload[key] === undefined) {
       delete updatePayload[key];
     }
   });
@@ -305,20 +289,13 @@ const updateShopItem = asyncHandler(async (req, res) => {
       runValidators: true,
     },
   )
-    .populate("category", "name")
-    .populate("package", PACKAGE_POPULATE_FIELDS)
-    .populate({
-      path: "attributes.Attribute",
-      select: "name value type display",
-    })
+    .populate(POPULATE_CHAIN)
     .lean();
 
-  // ✅ Response (reflect partial image issues)
   res.status(200).json({
     success: true,
     message: "Shop item updated successfully",
     data: updatedItem,
-    ...(imageLogs.length > 0 && { imageLogs }), // only include if any issues
   });
 });
 
@@ -343,6 +320,168 @@ const deleteShopItem = asyncHandler(async (req, res) => {
   }
   await ShopItem.deleteOne({ _id: req.params.id });
   res.json({ message: "Shop item deleted successfully", id: req.params.id });
+});
+
+// @desc   Add images to an existing item's catalog
+// @route  POST /api/shop-items/:id/images
+// @access Private (admin/super_admin)
+const addShopItemImages = asyncHandler(async (req, res) => {
+  const item = await ShopItem.findById(req.params.id);
+  if (!item) {
+    res.status(404);
+    throw new Error("Shop item not found");
+  }
+
+  const fileData = await uploadHandler({
+    req,
+    schema: fileValidationSchema,
+    allowedTypes: ["image/jpeg", "image/png"],
+  });
+
+  if (fileData.results.length === 0) {
+    res.status(400);
+    throw new Error(fileData.errorLogs.join("; ") || "No valid images uploaded");
+  }
+
+  if (item.imageCatalog.length + fileData.results.length > MAX_IMAGE_CATALOG) {
+    await Promise.all(fileData.results.map((r) => deleteFile(r.path)));
+    res.status(400);
+    throw new Error(
+      `This item already has ${item.imageCatalog.length} of ${MAX_IMAGE_CATALOG} images allowed`,
+    );
+  }
+
+  item.imageCatalog.push(...fileData.results);
+  await item.save();
+
+  const populatedItem = await ShopItem.findById(item._id)
+    .populate(POPULATE_CHAIN)
+    .lean();
+
+  res.status(201).json({
+    success: true,
+    message: "Images added successfully",
+    data: populatedItem,
+    ...(fileData.errorLogs.length > 0 && { imageLogs: fileData.errorLogs }),
+  });
+});
+
+// @desc   Remove one image from an item's catalog
+// @route  DELETE /api/shop-items/:id/images/:imageId
+// @access Private (admin/super_admin)
+const removeShopItemImage = asyncHandler(async (req, res) => {
+  const item = await ShopItem.findById(req.params.id);
+  if (!item) {
+    res.status(404);
+    throw new Error("Shop item not found");
+  }
+
+  const image = item.imageCatalog.find((img) => img.id === req.params.imageId);
+  if (!image) {
+    res.status(404);
+    throw new Error("Image not found in catalog");
+  }
+
+  await deleteFile(image.path);
+  item.imageCatalog = item.imageCatalog.filter(
+    (img) => img.id !== req.params.imageId,
+  );
+  await item.save();
+
+  const populatedItem = await ShopItem.findById(item._id)
+    .populate(POPULATE_CHAIN)
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    message: "Image removed successfully",
+    data: populatedItem,
+  });
+});
+
+// @desc   Reorder an item's image catalog
+// @route  PATCH /api/shop-items/:id/images/reorder
+// @access Private (admin/super_admin)
+const reorderShopItemImages = asyncHandler(async (req, res) => {
+  await imageReorderSchema.validate(req.body, { abortEarly: false });
+
+  const item = await ShopItem.findById(req.params.id);
+  if (!item) {
+    res.status(404);
+    throw new Error("Shop item not found");
+  }
+
+  const { order } = req.body;
+  const existingIds = item.imageCatalog.map((img) => img.id);
+
+  const isSamePermutation =
+    order.length === existingIds.length &&
+    existingIds.every((id) => order.includes(id)) &&
+    new Set(order).size === order.length;
+
+  if (!isSamePermutation) {
+    res.status(400);
+    throw new Error("order must contain exactly the item's existing image ids");
+  }
+
+  const byId = new Map(item.imageCatalog.map((img) => [img.id, img]));
+  item.imageCatalog = order.map((id) => byId.get(id));
+  await item.save();
+
+  const populatedItem = await ShopItem.findById(item._id)
+    .populate(POPULATE_CHAIN)
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    message: "Image order updated successfully",
+    data: populatedItem,
+  });
+});
+
+// @desc   Tag an image with the attribute(s) it belongs to
+// @route  PATCH /api/shop-items/:id/images/:imageId/tags
+// @access Private (admin/super_admin)
+const tagShopItemImage = asyncHandler(async (req, res) => {
+  await imageTagSchema.validate(req.body, { abortEarly: false });
+
+  const item = await ShopItem.findById(req.params.id);
+  if (!item) {
+    res.status(404);
+    throw new Error("Shop item not found");
+  }
+
+  const image = item.imageCatalog.find((img) => img.id === req.params.imageId);
+  if (!image) {
+    res.status(404);
+    throw new Error("Image not found in catalog");
+  }
+
+  const { attrTag = [] } = req.body;
+  const ownAttributeIds = new Set(
+    item.attributes.map((a) => a.Attribute.toString()),
+  );
+  const invalidIds = attrTag.filter((id) => !ownAttributeIds.has(id));
+
+  if (invalidIds.length > 0) {
+    res.status(400);
+    throw new Error(
+      `attrTag references attribute(s) not on this item: ${invalidIds.join(", ")}`,
+    );
+  }
+
+  image.attrTag = attrTag;
+  await item.save();
+
+  const populatedItem = await ShopItem.findById(item._id)
+    .populate(POPULATE_CHAIN)
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    message: "Image tags updated successfully",
+    data: populatedItem,
+  });
 });
 
 // @desc   Public Get Single Shop Item
@@ -510,4 +649,8 @@ module.exports = {
   deleteShopItem,
   getShopItemById,
   getRelatedShopItems,
+  addShopItemImages,
+  removeShopItemImage,
+  reorderShopItemImages,
+  tagShopItemImage,
 };

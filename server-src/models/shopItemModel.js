@@ -7,6 +7,37 @@ const STATUS = {
   AVAILABLE: "available",
 };
 
+// Headroom for a multi-color clothing item's full shot list
+// (front/back/lifestyle/detail x several colors), well above a single-SKU cap.
+const MAX_IMAGE_CATALOG = 24;
+
+const dedupeIdArray = (arr) => [
+  ...new Set((arr || []).map((v) => v?.toString()).filter(Boolean)),
+];
+
+// Matches fileManager.generateFileInfo()'s output shape exactly.
+const imageCatalogItemSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    fileName: { type: String, required: true },
+    path: { type: String, required: true },
+    url: { type: String, required: true },
+    mime: { type: String, required: true },
+    // Which attribute(s) (e.g. a color variant) this image belongs to —
+    // replaces the old per-attribute `images` copy array.
+    attrTag: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Attribute" }],
+      default: [],
+      set: dedupeIdArray,
+      validate: {
+        validator: (arr) => arr.length === new Set(arr.map(String)).size,
+        message: "Duplicate Attribute id in attrTag",
+      },
+    },
+  },
+  { _id: false },
+);
+
 const attributeSchema = new mongoose.Schema({
   Attribute: {
     type: mongoose.Schema.Types.ObjectId,
@@ -27,9 +58,6 @@ const attributeSchema = new mongoose.Schema({
   },
   additionalAmount: {
     type: Number,
-  },
-  images: {
-    type: Array, // optional
   },
 });
 
@@ -115,12 +143,13 @@ const shopItemSchema = mongoose.Schema(
       type: Number,
       required: [true, "quantity for this item is missing"],
     },
-    placeHolder: {
-      type: Object,
-    },
     imageCatalog: {
-      type: Array,
+      type: [imageCatalogItemSchema],
       required: [true, "A catalog for the item is needed"],
+      validate: {
+        validator: (arr) => arr.length <= MAX_IMAGE_CATALOG,
+        message: `A product can have at most ${MAX_IMAGE_CATALOG} images`,
+      },
     },
     attributes: {
       type: [attributeSchema], // array of objects
@@ -530,4 +559,4 @@ shopItemSchema.pre("findOneAndUpdate", async function (next) {
 });
 
 const ShopItem = mongoose.model("ShopItem", shopItemSchema);
-module.exports = { ShopItem, STATUS };
+module.exports = { ShopItem, STATUS, MAX_IMAGE_CATALOG };

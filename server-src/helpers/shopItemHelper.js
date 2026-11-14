@@ -60,39 +60,12 @@ const parseClassTagsFilter = (input) => {
   };
 };
 
-const sanitizeAttributes = async (attributes = [], removeImages = []) => {
+const sanitizeAttributes = async (attributes = []) => {
   if (!Array.isArray(attributes) || attributes.length === 0) {
     return attributes;
   }
 
   let sanitized = [...attributes];
-
-  // ============================================
-  // 1️⃣ REMOVE DELETED IMAGES FROM ATTRIBUTES
-  // ============================================
-  if (Array.isArray(removeImages) && removeImages.length > 0) {
-    const removeSet = new Set(
-      removeImages
-        .flatMap((img) => [img.id, img.path, img.url, img.fileName])
-        .filter(Boolean),
-    );
-
-    sanitized = sanitized.map((attr) => {
-      if (!Array.isArray(attr.images)) return attr;
-
-      return {
-        ...attr,
-        images: attr.images.filter((img) => {
-          return !(
-            removeSet.has(img.id) ||
-            removeSet.has(img.path) ||
-            removeSet.has(img.url) ||
-            removeSet.has(img.fileName)
-          );
-        }),
-      };
-    });
-  }
 
   const attributeIds = [
     ...new Set(attributes.map((a) => a.Attribute?.toString()).filter(Boolean)),
@@ -114,6 +87,17 @@ const sanitizeAttributes = async (attributes = [], removeImages = []) => {
   }));
 
   return sanitized;
+};
+
+// Strips attrTag entries that no longer reference a surviving attribute
+// (called when a product's attributes[] shrinks via the normal details save).
+const sanitizeImageCatalogTags = (imageCatalog = [], survivingAttributeIds = []) => {
+  const surviving = new Set(survivingAttributeIds.map(String));
+
+  return (imageCatalog || []).map((img) => ({
+    ...img,
+    attrTag: (img.attrTag || []).filter((id) => surviving.has(String(id))),
+  }));
 };
 
 const mergeUnique = (existing, incoming, limit) => {
@@ -140,6 +124,7 @@ module.exports = {
   normalizeData,
   parseClassTagsFilter,
   sanitizeAttributes,
+  sanitizeImageCatalogTags,
   parseMultipartData,
   mergeUnique,
 };

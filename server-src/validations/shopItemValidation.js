@@ -19,14 +19,6 @@ const objectIdExists = (Model, fieldName) =>
       },
     );
 
-// ✅ Image Catalog Schema
-const imageCatalogSchema = yup.object({
-  imageCatalog: yup
-    .array()
-    .of(yup.string().url("Each image must be a valid URL"))
-    .required("Image catalog is required"),
-});
-
 // ✅ Shop Item Schema
 const shopItemValidationSchema = yup.object({
   name: yup.string().required("Item name is required"),
@@ -66,7 +58,6 @@ const shopItemValidationSchema = yup.object({
   subCategory: yup.string().optional(),
 
   quantity: yup.number().min(0).required("Quantity is required"),
-  placeHolder: yup.object().optional(),
   attributes: yup
     .array()
     .of(
@@ -86,18 +77,6 @@ const shopItemValidationSchema = yup.object({
           .min(0)
           .optional(),
         additionalAmount: yup.number().min(0).optional(),
-        images: yup
-          .array()
-          .of(
-            yup.object({
-              id: yup.string().required(),
-              fileName: yup.string().required(),
-              path: yup.string().required(),
-              url: yup.string().required(),
-              mime: yup.string().required(),
-            }),
-          )
-          .optional(),
       }),
     )
     .test(
@@ -349,7 +328,25 @@ const shopItemValidationSchema = yup.object({
     .optional(),
 });
 
+// ✅ Reorder images — body must be a permutation of existing image ids
+const imageReorderSchema = yup.object({
+  order: yup
+    .array()
+    .of(yup.string().required())
+    .min(1, "order must contain at least one image id")
+    .required("order is required"),
+});
+
+// ✅ Tag an image with the attribute(s) it belongs to
+const imageTagSchema = yup.object({
+  attrTag: yup
+    .array()
+    .of(yup.string().matches(/^[0-9a-fA-F]{24}$/, "Invalid Attribute id"))
+    .default([]),
+});
+
 module.exports = {
   shopItemValidationSchema,
-  imageCatalogSchema,
+  imageReorderSchema,
+  imageTagSchema,
 };
